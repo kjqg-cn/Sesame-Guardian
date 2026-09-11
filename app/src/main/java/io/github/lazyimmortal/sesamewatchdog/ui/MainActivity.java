@@ -16,6 +16,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -32,6 +33,7 @@ import io.github.lazyimmortal.sesamewatchdog.logging.DiagnosticLogStore;
 import io.github.lazyimmortal.sesamewatchdog.root.RootAccessVerifier;
 
 public final class MainActivity extends Activity {
+    private static final int MAIN_BACKGROUND = Color.rgb(246, 247, 249);
     private final ExecutorService rootCheckExecutor = Executors.newSingleThreadExecutor();
     private Switch enabledSwitch;
     private EditText startupGraceInput;
@@ -45,6 +47,14 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        getWindow().setStatusBarColor(MAIN_BACKGROUND);
+        getWindow().setNavigationBarColor(MAIN_BACKGROUND);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
 
         WatchdogConfig config = WatchdogConfigStore.load(this);
         setContentView(createContent(config));
@@ -61,14 +71,28 @@ public final class MainActivity extends Activity {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(padding, padding, padding, padding);
-        content.setBackgroundColor(Color.rgb(246, 247, 249));
+        content.setBackgroundColor(MAIN_BACKGROUND);
+
+        LinearLayout titleBar = new LinearLayout(this);
+        titleBar.setOrientation(LinearLayout.HORIZONTAL);
+        titleBar.setGravity(Gravity.CENTER_VERTICAL);
+        content.addView(titleBar, matchWidth());
 
         TextView title = new TextView(this);
         title.setText(getString(R.string.app_name));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
         title.setTextColor(Color.rgb(24, 32, 45));
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        content.addView(title, matchWidth());
+        titleBar.addView(title, weightedWidth());
+
+        ImageButton aboutButton = new ImageButton(this);
+        aboutButton.setImageResource(R.drawable.ic_more_vert);
+        aboutButton.setImageTintList(ColorStateList.valueOf(Color.rgb(52, 64, 84)));
+        aboutButton.setBackgroundColor(Color.TRANSPARENT);
+        aboutButton.setContentDescription("更多");
+        aboutButton.setTooltipText("更多");
+        aboutButton.setOnClickListener(this::showMoreMenu);
+        titleBar.addView(aboutButton, iconButtonParams());
 
         TextView subtitle = new TextView(this);
         subtitle.setText("锁屏期间监控支付宝运行状态");
@@ -98,7 +122,7 @@ public final class MainActivity extends Activity {
 
         foregroundRecoveryIntervalInput = addMinutesField(
                 foregroundPanel,
-                "拉起间隔（分钟）",
+                "拉起间隔",
                 config.getForegroundRecoveryIntervalMinutes());
         addPanel(content, foregroundPanel);
 
@@ -258,6 +282,10 @@ public final class MainActivity extends Activity {
         return params;
     }
 
+    private LinearLayout.LayoutParams iconButtonParams() {
+        return new LinearLayout.LayoutParams(dp(48), dp(48));
+    }
+
     private void showInfoPopup(View anchor, String title, String explanation) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -291,6 +319,16 @@ public final class MainActivity extends Activity {
         popup.setOutsideTouchable(true);
         popup.setElevation(dp(8));
         popup.showAsDropDown(anchor, -dp(248), dp(6));
+    }
+
+    private void showMoreMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add("关于");
+        popupMenu.setOnMenuItemClickListener(item -> {
+            startActivity(new Intent(this, AboutActivity.class));
+            return true;
+        });
+        popupMenu.show();
     }
 
     private Button createButton(String text, boolean primary) {

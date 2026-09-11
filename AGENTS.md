@@ -17,7 +17,7 @@
 - 独立构建、安装和升级，不修改 Sesame-GR 源码。
 - 可以与 Sesame-GR 同时作用于支付宝。
 - 不直接引用、反射或 Hook `io.github.lazyimmortal.sesame.*` 类，避免 LSPosed 模块 ClassLoader 隔离及上游升级造成耦合。
-- 将真正的看门狗放在支付宝进程之外。只在支付宝进程内增加检测逻辑无法处理整个进程被冻结或被杀的情况。
+- 将真正的守护服务放在支付宝进程之外。只在支付宝进程内增加检测逻辑无法处理整个进程被冻结或被杀的情况。
 - 面向已 root、已安装 LSPosed 的设备设计，可以使用 root 完成最终恢复，但不能要求用户手工部署 shell 脚本。
 
 ## 已确认的问题
@@ -31,7 +31,7 @@
 - 目标进程曾出现约 750 MB RSS、约 916 MB Swap 和 400 多个线程。
 - Sesame-GR 持有 `PARTIAL_WAKE_LOCK`，但 WakeLock 只能阻止 CPU 完全休眠，不能保证主 Looper、RPC 环境、WebView/小程序子进程和应用进程始终健康。
 
-Sesame-GR 当前的 5 分钟调度使用支付宝主线程的 `Handler.postDelayed()`。当支付宝进程或主 Looper 被系统冻结时，调度器和模块内部的超时检测会一起停止。“超时重启”主要处理 RPC 登录超时，不等于进程级看门狗，也不会真正 `force-stop` 支付宝。
+Sesame-GR 当前的 5 分钟调度使用支付宝主线程的 `Handler.postDelayed()`。当支付宝进程或主 Looper 被系统冻结时，调度器和模块内部的超时检测会一起停止。“超时重启”主要处理 RPC 登录超时，不等于进程级守护服务，也不会真正 `force-stop` 支付宝。
 
 ## 独立模块架构
 
@@ -40,12 +40,12 @@ Sesame-GR 当前的 5 分钟调度使用支付宝主线程的 `Handler.postDelay
 初始设计包含两个作用域：
 
 - `com.eg.android.AlipayGphone`：运行轻量探针。
-- `com.android.systemui`：运行进程外看门狗。
+- `com.android.systemui`：运行进程外守护服务。
 
 必须严格判断进程名：
 
 - 支付宝探针只在 `processName == com.eg.android.AlipayGphone` 的主进程运行。
-- SystemUI 看门狗只在 `processName == com.android.systemui` 时运行。
+- SystemUI 守护服务只在 `processName == com.android.systemui` 时运行。
 
 SystemUI 属于关键系统进程。注入代码必须小、无阻塞，并在所有 Hook 和广播入口捕获 `Throwable`。不要把完整业务、网络访问、磁盘扫描或 root 命令直接放在 SystemUI 主线程。
 
@@ -60,7 +60,7 @@ SystemUI 属于关键系统进程。注入代码必须小、无阻塞，并在�
    - `执行中`
    - `下次执行 HH:mm:ss`
    - `上次执行 HH:mm:ss ...`
-5. 将心跳和通知状态发送给进程外看门狗。
+5. 将心跳和通知状态发送给进程外守护服务。
 6. 在收到带恢复标记的支付宝启动请求时，尽力设置 `showWhenLocked`、`turnScreenOn`，并仅在 Activity 窗口实际获得焦点后回报前台恢复结果。
 
 跨进程时间判断使用 `SystemClock.elapsedRealtime()`，不能只使用墙上时间，避免用户校时、网络校时或时区变化造成误判。
@@ -78,7 +78,7 @@ SystemUI 属于关键系统进程。注入代码必须小、无阻塞，并在�
 
 这些属于观察到的外部特征，不是稳定 API。当前实现将其作为 Sesame-GR 专用解析规则写在代码中，设置页不覆盖通知 ID 或 Channel ID。支持其他模块需要增加独立的配置 profile。
 
-### SystemUI 看门狗
+### SystemUI 守护服务
 
 SystemUI 侧维护状态机：
 
@@ -132,12 +132,20 @@ SystemUI 侧维护状态机：
 - 本模块进程通过 `su` 执行固定、参数受控的 `am force-stop --user ...` 和 `am start --user ...`。
 - 禁止拼接未经验证的包名、组件名或任意用户输入到 root shell。
 
+## 设置页关于入口
+
+- 设置页右上角应提供一个可点击的更多/关于图标。
+- 点击图标后应弹出“关于”入口；进入关于页后至少显示当前模块版本、源代码入口和反馈入口。
+- “源代码”指向项目主页：`https://github.com/kjqg-cn/Sesame-Guardian`。
+- “反馈”指向 GitHub Issues：`https://github.com/kjqg-cn/Sesame-Guardian/issues`。
+- 关于页可继续扩展许可证、构建信息、免责声明等内容；新增外链必须使用明确的可访问性描述，并通过系统浏览器打开。
+
 ### 安全规则
 
 - 所有恢复操作必须有冷却、频率限制和日志。
 - 第一次收到心跳前不应立即判定故障，应有启动宽限期。
 - 系统启动、支付宝升级、模块升级和用户主动强停期间应避免自动拉起循环。
-- 用户在设置中关闭看门狗后，必须停止诊断、锁屏前台拉起和恢复动作。
+- 用户在设置中关闭守护服务后，必须停止诊断、锁屏前台拉起和恢复动作。
 - 自动软恢复和 root 硬恢复默认关闭；诊断阈值默认只用于记录。
 - 不 Hook `system_server`，除非 SystemUI 方案已被证明无法满足需求且用户明确接受更高风险。
 - 不在 SystemUI 中强行设置 Keyguard 遮挡；当前设备上该路径可能造成锁屏黑屏，相关桥接代码保持停用。
@@ -165,7 +173,7 @@ SystemUI 侧维护状态机：
 
 - Sesame-GR 无需重新编译或修改。
 - 新模块禁用后不改变支付宝和 Sesame-GR 的行为。
-- 支付宝主进程被杀后，看门狗能识别心跳中断。
+- 支付宝主进程被杀后，守护服务能识别心跳中断。
 - 支付宝主进程仍在但主 Looper 被阻塞时，能在阈值后识别。
 - Sesame-GR 通知超过预期时间未更新时，能识别调度失效。
 - 锁屏前台拉起会按冷却和间隔执行，不因一次可见性失败立即形成重启循环。

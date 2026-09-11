@@ -114,7 +114,7 @@ public final class LogActivity extends Activity {
     private void confirmClearLogs() {
         new AlertDialog.Builder(this)
                 .setTitle("清除诊断日志")
-                .setMessage("仅清除 Sesame Guardian 私有日志，不影响 LSPosed 或 Sesame-GR 日志。")
+                .setMessage("仅清除芝麻守护私有日志，不影响 LSPosed 或 Sesame-GR 日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清除", (dialog, which) -> clearLogs())
                 .show();
