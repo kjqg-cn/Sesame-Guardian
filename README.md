@@ -81,11 +81,11 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 发布版本
 
-当前版本：`v0.1.0`
+当前版本：[v0.1.0](https://github.com/kjqg-cn/Sesame-Guardian/releases/tag/v0.1.0)
 
 安装或更新时：
 
-1. 安装或覆盖安装 Release 中的 APK。
+1. 安装或覆盖安装 [Release 中的 APK](https://github.com/kjqg-cn/Sesame-Guardian/releases/tag/v0.1.0)。
 2. 在 LSPosed 中确认支付宝和 SystemUI 作用域仍已启用。
 3. 向模块 UID 授予长期 root 权限，以便执行锁屏期间的前台拉起。
 4. 更新模块后重启支付宝和 SystemUI 作用域；也可以直接重启设备。
@@ -101,10 +101,10 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 校验
 
-当前 `v0.1.0` 附件为用于首个公开验证的 Android debug 签名 APK。Release 页面会提供 APK 和签名证书的 SHA-256 校验值。安装前可以使用以下命令计算本地文件的校验值：
+当前 `v0.1.0` 附件为用于首个公开验证的 Android debug 签名 APK。[Release 页面](https://github.com/kjqg-cn/Sesame-Guardian/releases/tag/v0.1.0)会提供 APK 和签名证书的 SHA-256 校验值。安装前可以使用以下命令计算本地文件的校验值：
 
 ```powershell
-Get-FileHash .\app-debug.apk -Algorithm SHA256
+Get-FileHash .\SesameGuardian-0.1.0.apk -Algorithm SHA256
 ```
 
 APK SHA-256：`9E0BED6510EA32CD7391116D2F445765BB183DDB94B6F84D18C03470F46FC220`
