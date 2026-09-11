@@ -32,11 +32,11 @@ final class AlipayNotificationProbe {
             boolean tagOverloadInstalled = hookTagOverload();
             if (!intOverloadInstalled && !tagOverloadInstalled) {
                 HOOK_INSTALLED.set(false);
-                XposedBridge.log("SesameWatchdog: Hook NotificationManager.notify 重载全部失败");
+                XposedBridge.log("SesameGuardian: Hook NotificationManager.notify 重载全部失败");
                 return;
             }
             XposedBridge.log(
-                    "SesameWatchdog: NotificationManager.notify Hook 已安装"
+                    "SesameGuardian: NotificationManager.notify Hook 已安装"
                             + "，notify(int)=" + WatchdogLogFormatter.yesNo(intOverloadInstalled)
                             + "，notify(String,int)="
                             + WatchdogLogFormatter.yesNo(tagOverloadInstalled));
@@ -113,7 +113,7 @@ final class AlipayNotificationProbe {
                 observedWallClock,
                 observedElapsedRealtime);
         XposedBridge.log(
-                "SesameWatchdog: 观察到 Sesame-GR 通知"
+                "SesameGuardian: 观察到 Sesame-GR 通知"
                         + "，状态=" + WatchdogLogFormatter.status(parsed.status)
                         + "，观察时间=" + WatchdogLogFormatter.wallClock(observedWallClock)
                         + "，下次执行=" + WatchdogLogFormatter.wallClock(
@@ -129,7 +129,7 @@ final class AlipayNotificationProbe {
     }
 
     private static void logError(String message, Throwable throwable) {
-        XposedBridge.log("SesameWatchdog: " + message);
+        XposedBridge.log("SesameGuardian: " + message);
         XposedBridge.log(throwable);
     }
 

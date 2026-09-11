@@ -13,12 +13,12 @@ final class XposedLog {
     }
 
     static void log(String message) {
-        XposedBridge.log("SesameWatchdog: " + message);
+        XposedBridge.log("SesameGuardian: " + message);
         DiagnosticLogSender.send(message);
     }
 
     static void logError(String message, Throwable throwable) {
-        XposedBridge.log("SesameWatchdog: " + message);
+        XposedBridge.log("SesameGuardian: " + message);
         XposedBridge.log(throwable);
         DiagnosticLogSender.send(message + "，异常=" + throwable);
     }

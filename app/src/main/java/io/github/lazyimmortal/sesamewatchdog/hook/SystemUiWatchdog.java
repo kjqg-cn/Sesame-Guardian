@@ -79,7 +79,7 @@ final class SystemUiWatchdog {
                             try {
                                 start((Context) param.args[0]);
                             } catch (Throwable throwable) {
-                                XposedLog.logError("初始化 SystemUI 看门狗失败", throwable);
+                                XposedLog.logError("初始化 SystemUI 守护服务失败", throwable);
                             }
                         }
                     });
@@ -107,7 +107,7 @@ final class SystemUiWatchdog {
             XposedLog.logError("初始化 SystemUI Keyguard 桥接失败", throwable);
         }
         HandlerThread workerThread = new HandlerThread(
-                "SesameWatchdog-SystemUI", Process.THREAD_PRIORITY_BACKGROUND);
+                "SesameGuardian-SystemUI", Process.THREAD_PRIORITY_BACKGROUND);
         workerThread.start();
         workerHandler = new Handler(workerThread.getLooper());
         workerHandler.post(SystemUiWatchdog::initializeOnWorker);
@@ -119,7 +119,7 @@ final class SystemUiWatchdog {
             state = new SystemUiWatchdogState(SystemClock.elapsedRealtime());
             registerReceiver();
             XposedLog.log(
-                    "SystemUI 看门狗已初始化，配置：" + WatchdogLogFormatter.config(config)
+                "SystemUI 守护服务已初始化，配置：" + WatchdogLogFormatter.config(config)
                             + "，SystemUI PID=" + Process.myPid());
             lastFault = null;
             lastHealthLogElapsedRealtime = 0L;
@@ -134,7 +134,7 @@ final class SystemUiWatchdog {
             RECOVERY_SEQUENCE.reset();
             scheduleCheck();
         } catch (Throwable throwable) {
-            XposedLog.logError("初始化 SystemUI 看门狗观察器失败", throwable);
+            XposedLog.logError("初始化 SystemUI 守护观察器失败", throwable);
         }
     }
 
@@ -166,7 +166,7 @@ final class SystemUiWatchdog {
         try {
             evaluateAndLog("periodic");
         } catch (Throwable throwable) {
-            XposedLog.logError("SystemUI 看门狗检查失败", throwable);
+            XposedLog.logError("SystemUI 守护检查失败", throwable);
         } finally {
             scheduleCheck();
         }
@@ -258,7 +258,7 @@ final class SystemUiWatchdog {
         }
         scheduleCheck();
         XposedLog.log(
-                "SystemUI 看门狗配置已更新，运行状态已保留："
+                "SystemUI 守护配置已更新，运行状态已保留："
                         + WatchdogLogFormatter.config(config));
         evaluateAndLog("config_update");
     }
@@ -282,7 +282,7 @@ final class SystemUiWatchdog {
             lastFault = fault;
             lastHealthLogElapsedRealtime = nowElapsedRealtime;
             XposedLog.log(
-                    "看门狗状态变化，触发方式=" + WatchdogLogFormatter.trigger(trigger)
+                    "守护状态变化，触发方式=" + WatchdogLogFormatter.trigger(trigger)
                             + "，状态=" + WatchdogLogFormatter.fault(fault)
                             + "，" + stateSnapshot());
         } else if ("periodic".equals(trigger)
@@ -290,7 +290,7 @@ final class SystemUiWatchdog {
                 >= HEALTH_LOG_INTERVAL_MILLIS) {
             lastHealthLogElapsedRealtime = nowElapsedRealtime;
             XposedLog.log(
-                    "看门狗定时检查完成，当前状态="
+                    "守护定时检查完成，当前状态="
                             + WatchdogLogFormatter.fault(fault)
                             + "，" + stateSnapshot());
         }
@@ -535,11 +535,11 @@ final class SystemUiWatchdog {
                     powerManager,
                     SystemClock.uptimeMillis(),
                     2,
-                    "SesameWatchdog");
+                    "SesameGuardian");
             PowerManager.WakeLock wakeLock = powerManager.newWakeLock(
                     PowerManager.SCREEN_BRIGHT_WAKE_LOCK
                             | PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                    "SesameWatchdog:ForegroundRecovery");
+                    "SesameGuardian:ForegroundRecovery");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire(FOREGROUND_RECOVERY_TIMEOUT_MILLIS);
             foregroundWakeLock = wakeLock;
@@ -940,7 +940,7 @@ final class SystemUiWatchdog {
                     handleScreenEvent(action);
                 }
             } catch (Throwable throwable) {
-                XposedLog.logError("处理 SystemUI 看门狗广播失败", throwable);
+                XposedLog.logError("处理 SystemUI 守护广播失败", throwable);
             }
         }
     }

@@ -73,7 +73,7 @@ final class DiagnosticLogSender {
                             request.getLong(WatchdogContract.EXTRA_LOG_WALL_CLOCK_MILLIS));
             context.sendBroadcast(intent);
         } catch (Throwable throwable) {
-            XposedBridge.log("SesameWatchdog: 写入模块私有日志失败：" + throwable);
+            XposedBridge.log("SesameGuardian: 写入模块私有日志失败：" + throwable);
         }
     }
 }

@@ -43,7 +43,7 @@ final class AlipayProbe {
                             }
                         }
                     });
-            XposedBridge.log("SesameWatchdog: 支付宝 Application.attach Hook 已安装");
+            XposedBridge.log("SesameGuardian: 支付宝 Application.attach Hook 已安装");
         } catch (Throwable throwable) {
             HOOK_INSTALLED.set(false);
             logError("Hook 支付宝 Application.attach 失败", throwable);
@@ -53,7 +53,7 @@ final class AlipayProbe {
     private static void startHeartbeat(Context context) {
         if (!ALIPAY_PACKAGE.equals(context.getPackageName())) {
             XposedBridge.log(
-                    "SesameWatchdog: 忽略非支付宝主进程的 Application.attach，包名="
+                    "SesameGuardian: 忽略非支付宝主进程的 Application.attach，包名="
                             + context.getPackageName());
             return;
         }
@@ -77,11 +77,11 @@ final class AlipayProbe {
             HeartbeatRunnable heartbeatRunnable = new HeartbeatRunnable(mainHandler);
             if (!mainHandler.post(heartbeatRunnable)) {
                 HEARTBEAT_STARTED.set(false);
-                XposedBridge.log("SesameWatchdog: 首次主 Looper 心跳入队失败");
+                XposedBridge.log("SesameGuardian: 首次主 Looper 心跳入队失败");
                 return;
             }
             XposedBridge.log(
-                    "SesameWatchdog: 支付宝主 Looper 心跳已启动，支付宝PID="
+                    "SesameGuardian: 支付宝主 Looper 心跳已启动，支付宝PID="
                             + Process.myPid());
         } catch (Throwable throwable) {
             HEARTBEAT_STARTED.set(false);
@@ -90,7 +90,7 @@ final class AlipayProbe {
     }
 
     private static void logError(String message, Throwable throwable) {
-        XposedBridge.log("SesameWatchdog: " + message);
+        XposedBridge.log("SesameGuardian: " + message);
         XposedBridge.log(throwable);
     }
 
@@ -114,7 +114,7 @@ final class AlipayProbe {
                 sequence++;
 
                 XposedBridge.log(
-                        "SesameWatchdog: 支付宝主 Looper 心跳"
+                        "SesameGuardian: 支付宝主 Looper 心跳"
                                 + "，支付宝PID=" + Process.myPid()
                                 + "，序号=" + sequence
                                 + "，距上次心跳=" + (interval == 0L
@@ -127,7 +127,7 @@ final class AlipayProbe {
 
             try {
                 if (!mainHandler.postDelayed(this, HEARTBEAT_INTERVAL_MILLIS)) {
-                    XposedBridge.log("SesameWatchdog: 安排下一次主 Looper 心跳失败");
+                    XposedBridge.log("SesameGuardian: 安排下一次主 Looper 心跳失败");
                 }
             } catch (Throwable throwable) {
                 logError("安排下一次主 Looper 心跳失败", throwable);

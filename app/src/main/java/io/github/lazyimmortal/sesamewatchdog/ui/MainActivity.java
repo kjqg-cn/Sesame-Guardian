@@ -78,13 +78,13 @@ public final class MainActivity extends Activity {
         content.addView(subtitle, matchWidth());
 
         LinearLayout masterPanel = createPanel();
-        addSectionTitle(masterPanel, "看门狗");
+        addSectionTitle(masterPanel, "守护服务");
         enabledSwitch = new Switch(this);
-        enabledSwitch.setText("启用看门狗");
+        enabledSwitch.setText("启用守护");
         enabledSwitch.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         enabledSwitch.setChecked(config.isEnabled());
         masterPanel.addView(enabledSwitch, matchWidth());
-        addDescription(masterPanel, "关闭后停止看门狗检查、诊断和自动操作。", false);
+        addDescription(masterPanel, "关闭后停止状态检查、诊断和自动操作。", false);
         addPanel(content, masterPanel);
 
         LinearLayout foregroundPanel = createPanel();

@@ -45,7 +45,7 @@ public final class LogActivity extends Activity {
         content.setPadding(padding, padding, padding, padding);
 
         TextView title = new TextView(this);
-        title.setText("看门狗日志");
+        title.setText("诊断日志");
         title.setTextSize(22);
         content.addView(title, matchWidth());
 
@@ -113,7 +113,7 @@ public final class LogActivity extends Activity {
 
     private void confirmClearLogs() {
         new AlertDialog.Builder(this)
-                .setTitle("清除看门狗日志")
+                .setTitle("清除诊断日志")
                 .setMessage("仅清除 Sesame Guardian 私有日志，不影响 LSPosed 或 Sesame-GR 日志。")
                 .setNegativeButton("取消", null)
                 .setPositiveButton("清除", (dialog, which) -> clearLogs())

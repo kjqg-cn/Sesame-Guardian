@@ -12,7 +12,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Watchdog for Sesame-GR running inside Alipay" />
+            android:value="Foreground guardian for Sesame-GR in Alipay" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />

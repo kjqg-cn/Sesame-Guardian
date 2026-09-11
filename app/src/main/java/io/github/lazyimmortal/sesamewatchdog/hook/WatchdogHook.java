@@ -14,14 +14,14 @@ public final class WatchdogHook implements IXposedHookLoadPackage {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
         if (ALIPAY_PACKAGE.equals(loadPackageParam.packageName)
                 && ALIPAY_PACKAGE.equals(loadPackageParam.processName)) {
-            XposedBridge.log("SesameWatchdog: 已识别支付宝主进程，支付宝PID=" + Process.myPid());
+            XposedBridge.log("SesameGuardian: 已识别支付宝主进程，支付宝PID=" + Process.myPid());
             AlipayProbe.install();
             return;
         }
 
         if (SYSTEM_UI_PACKAGE.equals(loadPackageParam.packageName)
                 && SYSTEM_UI_PACKAGE.equals(loadPackageParam.processName)) {
-            XposedBridge.log("SesameWatchdog: 已识别 SystemUI 进程");
+            XposedBridge.log("SesameGuardian: 已识别 SystemUI 进程");
             SystemUiWatchdog.install();
         }
     }

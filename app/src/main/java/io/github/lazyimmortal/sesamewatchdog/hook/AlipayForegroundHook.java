@@ -95,7 +95,7 @@ final class AlipayForegroundHook {
             } catch (Throwable throwable) {
                 logError("Hook 支付宝 Activity.onNewIntent 失败", throwable);
             }
-            XposedBridge.log("SesameWatchdog: 支付宝前台 Activity Hook 已安装");
+            XposedBridge.log("SesameGuardian: 支付宝前台 Activity Hook 已安装");
         } catch (Throwable throwable) {
             HOOK_INSTALLED.set(false);
             logError("Hook 支付宝前台 Activity 失败", throwable);
@@ -218,7 +218,7 @@ final class AlipayForegroundHook {
                                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                                             | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
                             Log.i(
-                                    "SesameWatchdog",
+                                    "SesameGuardian",
                                     "保留支付宝锁屏窗口 flags=" + attributes.flags);
                         }
                     }
@@ -268,11 +268,11 @@ final class AlipayForegroundHook {
             window.setAttributes(attributes);
             window.setFlags(requiredFlags, requiredFlags);
             Log.i(
-                    "SesameWatchdog",
+                    "SesameGuardian",
                     "设置支付宝锁屏窗口 flags=" + window.getAttributes().flags);
         }
         XposedBridge.log(
-                "SesameWatchdog: 已为支付宝 Activity 设置 showWhenLocked/turnScreenOn"
+                "SesameGuardian: 已为支付宝 Activity 设置 showWhenLocked/turnScreenOn"
                         + "，class=" + activity.getClass().getName());
     }
 
@@ -290,7 +290,7 @@ final class AlipayForegroundHook {
                     scheduleVisibleCheck(activity, attemptsRemaining - 1);
                 } else {
                     XposedBridge.log(
-                            "SesameWatchdog: 支付宝 Activity 已恢复但窗口仍未获得焦点"
+                            "SesameGuardian: 支付宝 Activity 已恢复但窗口仍未获得焦点"
                                     + "，class=" + activity.getClass().getName());
                 }
             } catch (Throwable throwable) {
@@ -364,7 +364,7 @@ final class AlipayForegroundHook {
     }
 
     private static void logError(String message, Throwable throwable) {
-        XposedBridge.log("SesameWatchdog: " + message);
+        XposedBridge.log("SesameGuardian: " + message);
         XposedBridge.log(throwable);
     }
 
