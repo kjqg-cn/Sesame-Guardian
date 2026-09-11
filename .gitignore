@@ -1,0 +1,18 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+app/build/
+.device-inspect/
+
+# Local research material; not part of the public release.
+/reference/device-pic/
+/reference/sesame-gr/
+
+# Redundant wrapper files outside the standard Gradle wrapper directory.
+/gradle/gradle-wrapper.jar
+/gradle/gradle-wrapper.properties
