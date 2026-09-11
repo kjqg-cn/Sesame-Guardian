@@ -104,7 +104,7 @@ app/build/outputs/apk/debug/app-debug.apk
 当前 `v0.1.0` 附件为用于首个公开验证的 Android debug 签名 APK。Release 页面会提供 APK 和签名证书的 SHA-256 校验值。安装前可以使用以下命令计算本地文件的校验值：
 
 ```powershell
-Get-FileHash .\Sesame-Guardian-v0.1.0-debug.apk -Algorithm SHA256
+Get-FileHash .\app-debug.apk -Algorithm SHA256
 ```
 
 APK SHA-256：`9E0BED6510EA32CD7391116D2F445765BB183DDB94B6F84D18C03470F46FC220`
