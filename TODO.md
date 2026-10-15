@@ -30,7 +30,10 @@
     - **严格的“防回滚 / 防覆盖”保障**：
       - 未启用或停用时**仅限制保存（Save），绝不重置或回滚现有配置**。
       - 本地 `WatchdogConfigStore` 正常加载已有配置用于界面回显；用户后续重新启用模块时，原配置完好保留，无需重复配置。
-  - **涉及组件**：`MainActivity.java`, `WatchdogHook.java`, `WatchdogConfigStore.java`
+    - **系统兼容与开机时效保障**：
+      - 声明 `<queries>` 支持 Android 11+ 包可见性，保障 LSPosed 快捷跳转入口正常识别；
+      - 运行状态时效采用单调时间（`elapsedRealtime`）结合开机基准时间，防止校时跳变与跨重启误判。
+  - **涉及组件**：`MainActivity.java`, `WatchdogHook.java`, `WatchdogConfigStore.java`, `ModuleActivationStatus.java`, `AndroidManifest.xml`
 
 - [ ] **1.2 基于“下次执行时间”的智能按需唤醒**
   - **现状分析**：当前 SystemUI 守护以固定间隔（默认 5 分钟）盲目拉起前台，即使通知中明确标明 30 分钟后才需要执行，中间的拉起操作完全属于无用功。
@@ -58,6 +61,15 @@
 - [ ] **1.5 距离传感器避让（防兜里/面朝下亮屏）**
   - **实现方案**：在 SystemUI 触发屏幕唤醒前，读取系统距离传感器（`Sensor.TYPE_PROXIMITY`）。若处于遮挡状态（手机装在口袋或正面朝下静置），则暂缓亮屏拉起，待传感器恢复正常后再触发。
   - **涉及组件**：`SystemUiWatchdog.java`
+
+- [x] **1.6 界面布局交互优化与二级页面视觉统一**
+  - **现状痛点**：设置页保存与 Root 检测按钮位于长列表底部，每次修改需频繁下拉到底；日志页缺少统一顶栏与返回键，状态栏未适配浅色沉浸，且操作按钮随长日志滚出屏幕。
+  - **落地成果**：
+    - 主配置页操作栏吸底常驻（Sticky Bottom Bar），配置项与底部操作解耦；配置页设置 `adjustResize` 软键盘避让；
+    - “查看日志”收纳至右上角操作菜单，保持主界面清爽；
+    - 日志页对齐“关于”页标准 64dp AppBar、返回箭头与状态栏浅色沉浸；
+    - 日志页概览与操作按钮固定置顶，日志正文独立滚动，长日志浏览更便捷。
+  - **涉及组件**：`MainActivity.java`, `LogActivity.java`, `AndroidManifest.xml`
 
 ---
 
