@@ -57,7 +57,8 @@ public final class MainActivity extends Activity {
             getWindow().setNavigationBarContrastEnforced(false);
         }
 
-        isModuleActive = ModuleActivationStatus.isModuleActive(this);
+        isModuleActive = !getIntent().getBooleanExtra("debug_force_inactive", false)
+                && ModuleActivationStatus.isModuleActive(this);
         WatchdogConfig config = WatchdogConfigStore.load(this);
         setContentView(createContent(config));
     }
@@ -65,7 +66,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        boolean currentActive = ModuleActivationStatus.isModuleActive(this);
+        boolean currentActive = !getIntent().getBooleanExtra("debug_force_inactive", false)
+                && ModuleActivationStatus.isModuleActive(this);
         if (currentActive != isModuleActive) {
             recreate();
         }
@@ -77,17 +79,22 @@ public final class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    private ScrollView createContent(WatchdogConfig config) {
-        int padding = dp(20);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(padding, padding, padding, padding);
-        content.setBackgroundColor(MAIN_BACKGROUND);
+    private View createContent(WatchdogConfig config) {
+        int horizontalPadding = dp(20);
+        int topPadding = dp(16);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(MAIN_BACKGROUND);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(horizontalPadding, topPadding, horizontalPadding, dp(8));
 
         LinearLayout titleBar = new LinearLayout(this);
         titleBar.setOrientation(LinearLayout.HORIZONTAL);
         titleBar.setGravity(Gravity.CENTER_VERTICAL);
-        content.addView(titleBar, matchWidth());
+        header.addView(titleBar, matchWidth());
 
         TextView title = new TextView(this);
         title.setText(getString(R.string.app_name));
@@ -109,19 +116,27 @@ public final class MainActivity extends Activity {
         subtitle.setText("锁屏期间监控支付宝运行状态");
         subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         subtitle.setTextColor(Color.rgb(102, 112, 133));
-        subtitle.setPadding(0, dp(6), 0, isModuleActive ? dp(8) : dp(14));
-        content.addView(subtitle, matchWidth());
+        subtitle.setPadding(0, dp(4), 0, isModuleActive ? dp(6) : dp(10));
+        header.addView(subtitle, matchWidth());
 
         if (isModuleActive) {
             TextView statusBadge = new TextView(this);
             statusBadge.setText("● 模块已在 LSPosed 激活生效");
             statusBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             statusBadge.setTextColor(Color.rgb(18, 183, 106));
-            statusBadge.setPadding(0, 0, 0, dp(12));
-            content.addView(statusBadge, matchWidth());
+            statusBadge.setPadding(0, 0, 0, dp(4));
+            header.addView(statusBadge, matchWidth());
         } else {
-            content.addView(createActivationBanner(), matchWidth());
+            header.addView(createActivationBanner(), matchWidth());
         }
+        root.addView(header, matchWidth());
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+
+        LinearLayout scrollableContent = new LinearLayout(this);
+        scrollableContent.setOrientation(LinearLayout.VERTICAL);
+        scrollableContent.setPadding(horizontalPadding, 0, horizontalPadding, dp(14));
 
         LinearLayout masterPanel = createPanel();
         addSectionTitle(masterPanel, "守护服务");
@@ -131,7 +146,7 @@ public final class MainActivity extends Activity {
         enabledSwitch.setChecked(config.isEnabled());
         masterPanel.addView(enabledSwitch, matchWidth());
         addDescription(masterPanel, "关闭后停止状态检查、诊断和自动操作。", false);
-        addPanel(content, masterPanel);
+        addPanel(scrollableContent, masterPanel);
 
         LinearLayout foregroundPanel = createPanel();
         addSectionTitle(foregroundPanel, "前台保活");
@@ -146,7 +161,7 @@ public final class MainActivity extends Activity {
                 foregroundPanel,
                 "拉起间隔",
                 config.getForegroundRecoveryIntervalMinutes());
-        addPanel(content, foregroundPanel);
+        addPanel(scrollableContent, foregroundPanel);
 
         LinearLayout diagnosticPanel = createPanel();
         addSectionTitle(diagnosticPanel, "诊断阈值");
@@ -175,7 +190,7 @@ public final class MainActivity extends Activity {
                 "执行进度停滞",
                 config.getExecutionStallMinutes(),
                 "计划时间已推进，但最近执行时间超过此时间没有更新时，记录进度可能停滞。");
-        addPanel(content, diagnosticPanel);
+        addPanel(scrollableContent, diagnosticPanel);
 
         if (!isModuleActive) {
             enabledSwitch.setEnabled(false);
@@ -188,6 +203,30 @@ public final class MainActivity extends Activity {
             executionStallInput.setEnabled(false);
         }
 
+        scrollView.addView(scrollableContent, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f);
+        root.addView(scrollView, scrollParams);
+
+        LinearLayout bottomBar = new LinearLayout(this);
+        bottomBar.setOrientation(LinearLayout.HORIZONTAL);
+        bottomBar.setGravity(Gravity.CENTER_VERTICAL);
+        bottomBar.setPadding(horizontalPadding, dp(10), horizontalPadding, dp(14));
+        bottomBar.setBackgroundColor(MAIN_BACKGROUND);
+
+        Button rootCheckButton = createButton("检查 root", false);
+        rootCheckButton.setOnClickListener(view -> checkRootAccess());
+        LinearLayout.LayoutParams rootBtnParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f);
+        bottomBar.addView(rootCheckButton, rootBtnParams);
+
         Button saveButton = createButton(
                 isModuleActive ? "保存设置" : "模块未激活（已锁定）",
                 isModuleActive);
@@ -198,34 +237,16 @@ public final class MainActivity extends Activity {
             saveButton.setTextColor(Color.rgb(102, 112, 133));
         }
         saveButton.setOnClickListener(view -> saveConfig());
-        LinearLayout.LayoutParams saveParams = matchWidth();
-        saveParams.topMargin = dp(18);
-        content.addView(saveButton, saveParams);
+        LinearLayout.LayoutParams saveBtnParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1.4f);
+        saveBtnParams.leftMargin = dp(12);
+        bottomBar.addView(saveButton, saveBtnParams);
 
-        LinearLayout tools = new LinearLayout(this);
-        tools.setOrientation(LinearLayout.HORIZONTAL);
-        tools.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(bottomBar, matchWidth());
 
-        Button rootCheckButton = createButton("检查 root", false);
-        rootCheckButton.setOnClickListener(view -> checkRootAccess());
-        tools.addView(rootCheckButton, weightedWidth());
-
-        Button logButton = createButton("打开日志", false);
-        logButton.setOnClickListener(view ->
-                startActivity(new Intent(this, LogActivity.class)));
-        LinearLayout.LayoutParams logParams = weightedWidth();
-        logParams.leftMargin = dp(12);
-        tools.addView(logButton, logParams);
-        LinearLayout.LayoutParams toolsParams = matchWidth();
-        toolsParams.topMargin = dp(10);
-        content.addView(tools, toolsParams);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        scrollView.addView(content, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-        return scrollView;
+        return root;
     }
 
     private EditText addMinutesField(LinearLayout content, String label, int value) {
@@ -364,10 +385,17 @@ public final class MainActivity extends Activity {
 
     private void showMoreMenu(View anchor) {
         PopupMenu popupMenu = new PopupMenu(this, anchor);
-        popupMenu.getMenu().add("关于");
+        popupMenu.getMenu().add(0, 1, 0, "查看日志");
+        popupMenu.getMenu().add(0, 2, 1, "关于");
         popupMenu.setOnMenuItemClickListener(item -> {
-            startActivity(new Intent(this, AboutActivity.class));
-            return true;
+            if (item.getItemId() == 1) {
+                startActivity(new Intent(this, LogActivity.class));
+                return true;
+            } else if (item.getItemId() == 2) {
+                startActivity(new Intent(this, AboutActivity.class));
+                return true;
+            }
+            return false;
         });
         popupMenu.show();
     }
@@ -382,12 +410,16 @@ public final class MainActivity extends Activity {
             button.setTextColor(Color.WHITE);
             button.setBackgroundTintList(
                     ColorStateList.valueOf(Color.rgb(42, 103, 218)));
+        } else {
+            button.setTextColor(Color.rgb(52, 64, 84));
+            button.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.rgb(234, 236, 240)));
         }
         return button;
     }
 
     private void saveConfig() {
-        if (!ModuleActivationStatus.isModuleActive(this)) {
+        if (!isModuleActive) {
             Toast.makeText(this, "模块未激活，已锁定配置修改", Toast.LENGTH_SHORT).show();
             return;
         }
