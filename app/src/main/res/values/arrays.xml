@@ -3,5 +3,6 @@
     <string-array name="xposed_scopes">
         <item>com.eg.android.AlipayGphone</item>
         <item>com.android.systemui</item>
+        <item>io.github.lazyimmortal.sesamewatchdog</item>
     </string-array>
 </resources>

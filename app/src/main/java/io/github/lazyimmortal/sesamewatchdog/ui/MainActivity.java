@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     private EditText executionStallInput;
     private Switch foregroundRecoverySwitch;
     private EditText foregroundRecoveryIntervalInput;
+    private boolean isModuleActive;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,8 +57,18 @@ public final class MainActivity extends Activity {
             getWindow().setNavigationBarContrastEnforced(false);
         }
 
+        isModuleActive = ModuleActivationStatus.isModuleActive(this);
         WatchdogConfig config = WatchdogConfigStore.load(this);
         setContentView(createContent(config));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        boolean currentActive = ModuleActivationStatus.isModuleActive(this);
+        if (currentActive != isModuleActive) {
+            recreate();
+        }
     }
 
     @Override
@@ -98,8 +109,19 @@ public final class MainActivity extends Activity {
         subtitle.setText("锁屏期间监控支付宝运行状态");
         subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         subtitle.setTextColor(Color.rgb(102, 112, 133));
-        subtitle.setPadding(0, dp(6), 0, dp(18));
+        subtitle.setPadding(0, dp(6), 0, isModuleActive ? dp(8) : dp(14));
         content.addView(subtitle, matchWidth());
+
+        if (isModuleActive) {
+            TextView statusBadge = new TextView(this);
+            statusBadge.setText("● 模块已在 LSPosed 激活生效");
+            statusBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            statusBadge.setTextColor(Color.rgb(18, 183, 106));
+            statusBadge.setPadding(0, 0, 0, dp(12));
+            content.addView(statusBadge, matchWidth());
+        } else {
+            content.addView(createActivationBanner(), matchWidth());
+        }
 
         LinearLayout masterPanel = createPanel();
         addSectionTitle(masterPanel, "守护服务");
@@ -155,7 +177,26 @@ public final class MainActivity extends Activity {
                 "计划时间已推进，但最近执行时间超过此时间没有更新时，记录进度可能停滞。");
         addPanel(content, diagnosticPanel);
 
-        Button saveButton = createButton("保存设置", true);
+        if (!isModuleActive) {
+            enabledSwitch.setEnabled(false);
+            foregroundRecoverySwitch.setEnabled(false);
+            foregroundRecoveryIntervalInput.setEnabled(false);
+            startupGraceInput.setEnabled(false);
+            heartbeatTimeoutInput.setEnabled(false);
+            nextOverdueInput.setEnabled(false);
+            runningTimeoutInput.setEnabled(false);
+            executionStallInput.setEnabled(false);
+        }
+
+        Button saveButton = createButton(
+                isModuleActive ? "保存设置" : "模块未激活（已锁定）",
+                isModuleActive);
+        saveButton.setEnabled(isModuleActive);
+        if (!isModuleActive) {
+            saveButton.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.rgb(208, 213, 221)));
+            saveButton.setTextColor(Color.rgb(102, 112, 133));
+        }
         saveButton.setOnClickListener(view -> saveConfig());
         LinearLayout.LayoutParams saveParams = matchWidth();
         saveParams.topMargin = dp(18);
@@ -346,6 +387,10 @@ public final class MainActivity extends Activity {
     }
 
     private void saveConfig() {
+        if (!ModuleActivationStatus.isModuleActive(this)) {
+            Toast.makeText(this, "模块未激活，已锁定配置修改", Toast.LENGTH_SHORT).show();
+            return;
+        }
         WatchdogConfig defaults = WatchdogConfig.defaults();
         WatchdogConfig config = WatchdogConfig.create(
                 enabledSwitch.isChecked(),
@@ -433,5 +478,69 @@ public final class MainActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private View createActivationBanner() {
+        LinearLayout banner = new LinearLayout(this);
+        banner.setOrientation(LinearLayout.VERTICAL);
+        banner.setPadding(dp(16), dp(14), dp(16), dp(14));
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(254, 243, 242));
+        background.setCornerRadius(dp(12));
+        background.setStroke(dp(1), Color.rgb(254, 205, 202));
+        banner.setBackground(background);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("未在 LSPosed 中激活（只读模式）");
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        titleView.setTextColor(Color.rgb(180, 35, 24));
+        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
+        banner.addView(titleView, matchWidth());
+
+        TextView descView = new TextView(this);
+        descView.setText("请在 LSPosed 管理器中启用「芝麻守护」，并确认勾选「系统界面」和「支付宝」作用域后重启对应进程生效。未激活期间已锁定配置修改，现有配置不会被覆盖或回滚。");
+        descView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        descView.setTextColor(Color.rgb(180, 35, 24));
+        descView.setPadding(0, dp(6), 0, 0);
+        banner.addView(descView, matchWidth());
+
+        if (isLSPosedManagerInstalled()) {
+            Button openLsposedButton = new Button(this);
+            openLsposedButton.setText("打开 LSPosed 管理器");
+            openLsposedButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            openLsposedButton.setTextColor(Color.rgb(180, 35, 24));
+            openLsposedButton.setBackgroundTintList(
+                    ColorStateList.valueOf(Color.rgb(254, 228, 226)));
+            openLsposedButton.setOnClickListener(v -> openLSPosedManager());
+            LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    dp(36));
+            btnParams.topMargin = dp(10);
+            banner.addView(openLsposedButton, btnParams);
+        }
+
+        LinearLayout.LayoutParams params = matchWidth();
+        params.bottomMargin = dp(12);
+        banner.setLayoutParams(params);
+        return banner;
+    }
+
+    private boolean isLSPosedManagerInstalled() {
+        try {
+            return getPackageManager().getLaunchIntentForPackage("org.lsposed.manager") != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private void openLSPosedManager() {
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage("org.lsposed.manager");
+            if (intent != null) {
+                startActivity(intent);
+            }
+        } catch (Throwable throwable) {
+            Toast.makeText(this, "无法启动 LSPosed 管理器", Toast.LENGTH_SHORT).show();
+        }
     }
 }

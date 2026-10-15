@@ -22,6 +22,7 @@ public final class WatchdogCommandProvider extends ContentProvider {
         if (Binder.getCallingUid() != Process.SYSTEM_UID || !isValidProtocol(extras)) {
             return result(false, "调用方或协议无效");
         }
+        io.github.lazyimmortal.sesamewatchdog.ui.ModuleActivationStatus.recordSystemUiInteraction(getContext());
         try {
             if (WatchdogContract.METHOD_APPEND_DIAGNOSTIC_LOG.equals(method)) {
                 return appendDiagnosticLog(extras);
