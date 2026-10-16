@@ -16,3 +16,6 @@ app/build/
 # Redundant wrapper files outside the standard Gradle wrapper directory.
 /gradle/gradle-wrapper.jar
 /gradle/gradle-wrapper.properties
+
+# Build artifacts
+*.apk

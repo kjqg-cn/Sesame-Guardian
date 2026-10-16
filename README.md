@@ -81,7 +81,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 发布版本
 
-当前版本：[v0.1.0](https://github.com/kjqg-cn/Sesame-Guardian/releases/tag/v0.1.0)
+当前版本：[v0.1.1](https://github.com/kjqg-cn/Sesame-Guardian/releases/tag/v0.1.1)
 
 安装或更新时：
 
@@ -101,13 +101,13 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 校验
 
-当前 `v0.1.0` 附件为用于首个公开验证的 Android debug 签名 APK。Release 页面会提供 APK 和签名证书的 SHA-256 校验值。安装前可以使用以下命令计算本地文件的校验值：
+当前 `v0.1.1` 附件为 Android debug 签名 APK。Release 页面会提供 APK 和签名证书的 SHA-256 校验值。安装前可以使用以下命令计算本地文件的校验值：
 
 ```powershell
-Get-FileHash .\SesameGuardian-0.1.0.apk -Algorithm SHA256
+Get-FileHash .\SesameGuardian-0.1.1.apk -Algorithm SHA256
 ```
 
-APK SHA-256：`8D8FFEF75E949B221537441E100D888487C60E36F7A2D9E9E2AB1A637E08324B`
+APK SHA-256：`F3018AEDFA6E7A1311AF3FAC63AA3EEE4C33B7227636A90D9C7A18ACB61FBAE5`
 
 签名证书 SHA-256：`7EAF33A4749BE1A45EBFCFC171F48BD5E09B18D9C55BCD6C587B752EA783AA6F`
 
