@@ -310,23 +310,44 @@ final class SystemUiWatchdog {
             SystemUiKeyguardBridge.setOccluded(false);
             return;
         }
-        if (lastForegroundRecoveryElapsedRealtime != 0L
-                && nowElapsedRealtime - lastForegroundRecoveryElapsedRealtime
-                < config.getForegroundRecoveryIntervalMillis()) {
+        SystemUiWatchdogState.ForegroundRecoveryTrigger trigger =
+                state.checkForegroundRecoveryTrigger(
+                        config,
+                        nowElapsedRealtime,
+                        lastForegroundRecoveryElapsedRealtime);
+        if (trigger == SystemUiWatchdogState.ForegroundRecoveryTrigger.NONE) {
             return;
         }
 
         long requestId = Math.max(1L, nowElapsedRealtime);
         activeForegroundRecoveryRequestId = requestId;
         foregroundHardRecoveryAttempted = false;
+        // 尝试时间立即记录：建立 60 秒冷却防抖，避免重试风暴
+        lastForegroundRecoveryElapsedRealtime = nowElapsedRealtime;
+
         SystemUiKeyguardBridge.setOccluded(true);
         boolean wakeScreen = prepareScreenForRecovery();
         if (!sendForegroundRecoveryRequest(requestId, wakeScreen)) {
             activeForegroundRecoveryRequestId = 0L;
+            releaseForegroundWakeLock();
             SystemUiKeyguardBridge.setOccluded(false);
             return;
         }
-        lastForegroundRecoveryElapsedRealtime = nowElapsedRealtime;
+
+        // 计划目标仅在拉起请求成功后标记：避免瞬时 IPC 失败导致放弃本轮唤醒
+        state.markForegroundRecoveryTriggered(trigger);
+        if (trigger == SystemUiWatchdogState.ForegroundRecoveryTrigger.SCHEDULED_DUE) {
+            XposedLog.log(
+                    "触发智能按需锁屏拉起（即将到达计划执行时间），目标="
+                            + WatchdogLogFormatter.elapsedRealtime(
+                            state.getLastScheduledTriggerTarget(), nowElapsedRealtime, System.currentTimeMillis())
+                            + "，请求编号=" + requestId);
+        } else {
+            XposedLog.log(
+                    "触发保底锁屏前台拉起（间隔="
+                            + config.getForegroundRecoveryIntervalMinutes()
+                            + "分钟），请求编号=" + requestId);
+        }
         scheduleForegroundRecoveryTimeout();
     }
 
@@ -364,6 +385,7 @@ final class SystemUiWatchdog {
             activeForegroundRecoveryRequestId = 0L;
             activeForegroundHardRecoveryRequestId = 0L;
             foregroundHardRecoveryAttempted = false;
+            releaseForegroundWakeLock();
             SystemUiKeyguardBridge.setOccluded(false);
             return;
         }
@@ -478,6 +500,9 @@ final class SystemUiWatchdog {
         activeForegroundRecoveryRequestId = 0L;
         activeForegroundHardRecoveryRequestId = 0L;
         foregroundHardRecoveryAttempted = false;
+        if (state != null) {
+            state.resetScheduledTriggerTarget();
+        }
     }
 
     private static boolean isKeyguardLocked() {

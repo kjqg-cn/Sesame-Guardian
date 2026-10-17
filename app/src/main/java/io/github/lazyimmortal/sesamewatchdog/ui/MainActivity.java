@@ -155,12 +155,16 @@ public final class MainActivity extends Activity {
         foregroundRecoverySwitch.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         foregroundRecoverySwitch.setChecked(config.isForegroundRecoveryEnabled());
         foregroundPanel.addView(foregroundRecoverySwitch, matchWidth());
-        addDescription(foregroundPanel, "开启后，按设定间隔拉起支付宝。", false);
+        addDescription(
+                foregroundPanel,
+                "开启后优先根据计划时间按需唤醒，减少锁屏无效亮屏。",
+                false);
 
         foregroundRecoveryIntervalInput = addMinutesField(
                 foregroundPanel,
-                "拉起间隔",
-                config.getForegroundRecoveryIntervalMinutes());
+                "保底拉起间隔",
+                config.getForegroundRecoveryIntervalMinutes(),
+                "优先在 Sesame-GR 计划时间前按需唤醒；当计划时间缺失、计划逾期或心跳异常时，按此间隔保底拉起。");
         addPanel(scrollableContent, foregroundPanel);
 
         LinearLayout diagnosticPanel = createPanel();

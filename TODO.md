@@ -35,12 +35,14 @@
       - 运行状态时效采用单调时间（`elapsedRealtime`）结合开机基准时间，防止校时跳变与跨重启误判。
   - **涉及组件**：`MainActivity.java`, `WatchdogHook.java`, `WatchdogConfigStore.java`, `ModuleActivationStatus.java`, `AndroidManifest.xml`
 
-- [ ] **1.2 基于“下次执行时间”的智能按需唤醒**
+- [x] **1.2 基于“下次执行时间”的智能按需唤醒**
   - **现状分析**：当前 SystemUI 守护以固定间隔（默认 5 分钟）盲目拉起前台，即使通知中明确标明 30 分钟后才需要执行，中间的拉起操作完全属于无用功。
   - **实现方案**：
-    - 在 `SystemUiWatchdogState` 中记录由 `AlipayNotificationProbe` 解析出的目标执行时间（`nextExecutionElapsedRealtime`）。
-    - 改造 `handleForegroundRecovery`：优先以“下次执行时间 - 1~2 分钟宽限期”作为唤醒触发点；仅在通知缺失、通知失效或心跳超期停滞时，才退回到配置的保底拉起间隔。
-  - **涉及组件**：`SystemUiWatchdog.java`, `SystemUiWatchdogState.java`, `AlipayNotificationProbe.java`
+    - 在 `SystemUiWatchdogState` 中利用已解析的目标执行时间（`nextExecutionElapsedRealtime`），实现按需唤醒判断 `checkForegroundRecoveryTrigger`。
+    - 优先以计划执行时间前 90 秒作为提前唤醒窗口（`SCHEDULED_DUE`），支持同一执行周期去重防抖与 60 秒冷却防抖；
+    - 在计划时间缺失、计划时间逾期、心跳超时或正在执行时，无缝回退至配置的保底拉起间隔（`FALLBACK_INTERVAL`）；
+    - 设置页文案优化，明确区分智能按需唤醒与保底拉起间隔，并在日志中明确区分触发源。
+  - **涉及组件**：`SystemUiWatchdog.java`, `SystemUiWatchdogState.java`, `MainActivity.java`, `SystemUiWatchdogStateTest.java`
   - **预期效果**：锁屏期间的亮屏次数预期降低 70%~80% 以上。
 
 - [ ] **1.3 夜间免打扰 / 节能时段**
