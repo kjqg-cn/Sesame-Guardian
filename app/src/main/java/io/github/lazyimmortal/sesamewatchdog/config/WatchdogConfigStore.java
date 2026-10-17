@@ -20,6 +20,11 @@ public final class WatchdogConfigStore {
             "foregroundRecoveryEnabled";
     private static final String KEY_FOREGROUND_RECOVERY_INTERVAL_MINUTES =
             "foregroundRecoveryIntervalMinutes";
+    private static final String KEY_QUIET_HOURS_ENABLED = "quietHoursEnabled";
+    private static final String KEY_QUIET_HOURS_START_HOUR = "quietHoursStartHour";
+    private static final String KEY_QUIET_HOURS_START_MINUTE = "quietHoursStartMinute";
+    private static final String KEY_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
+    private static final String KEY_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
     private static final String KEY_POLICY_VERSION = "policyVersion";
     private static final int RECOMMENDED_POLICY_VERSION = 2;
 
@@ -59,7 +64,22 @@ public final class WatchdogConfigStore {
                         defaults.isForegroundRecoveryEnabled()),
                 preferences.getInt(
                         KEY_FOREGROUND_RECOVERY_INTERVAL_MINUTES,
-                        defaults.getForegroundRecoveryIntervalMinutes()));
+                        defaults.getForegroundRecoveryIntervalMinutes()),
+                preferences.getBoolean(
+                        KEY_QUIET_HOURS_ENABLED,
+                        defaults.isQuietHoursEnabled()),
+                preferences.getInt(
+                        KEY_QUIET_HOURS_START_HOUR,
+                        defaults.getQuietHoursStartHour()),
+                preferences.getInt(
+                        KEY_QUIET_HOURS_START_MINUTE,
+                        defaults.getQuietHoursStartMinute()),
+                preferences.getInt(
+                        KEY_QUIET_HOURS_END_HOUR,
+                        defaults.getQuietHoursEndHour()),
+                preferences.getInt(
+                        KEY_QUIET_HOURS_END_MINUTE,
+                        defaults.getQuietHoursEndMinute()));
         if (migrateRecoveryPolicy) {
             save(context, config);
         }
@@ -83,6 +103,11 @@ public final class WatchdogConfigStore {
                 .putInt(
                         KEY_FOREGROUND_RECOVERY_INTERVAL_MINUTES,
                         config.getForegroundRecoveryIntervalMinutes())
+                .putBoolean(KEY_QUIET_HOURS_ENABLED, config.isQuietHoursEnabled())
+                .putInt(KEY_QUIET_HOURS_START_HOUR, config.getQuietHoursStartHour())
+                .putInt(KEY_QUIET_HOURS_START_MINUTE, config.getQuietHoursStartMinute())
+                .putInt(KEY_QUIET_HOURS_END_HOUR, config.getQuietHoursEndHour())
+                .putInt(KEY_QUIET_HOURS_END_MINUTE, config.getQuietHoursEndMinute())
                 .putInt(KEY_POLICY_VERSION, RECOMMENDED_POLICY_VERSION)
                 .apply();
     }
@@ -117,15 +142,30 @@ public final class WatchdogConfigStore {
                         defaults.isForegroundRecoveryEnabled()),
                 intent.getIntExtra(
                         WatchdogContract.EXTRA_FOREGROUND_RECOVERY_INTERVAL_MINUTES,
-                        defaults.getForegroundRecoveryIntervalMinutes()));
+                        defaults.getForegroundRecoveryIntervalMinutes()),
+                intent.getBooleanExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_ENABLED,
+                        defaults.isQuietHoursEnabled()),
+                intent.getIntExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_START_HOUR,
+                        defaults.getQuietHoursStartHour()),
+                intent.getIntExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_START_MINUTE,
+                        defaults.getQuietHoursStartMinute()),
+                intent.getIntExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_END_HOUR,
+                        defaults.getQuietHoursEndHour()),
+                intent.getIntExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_END_MINUTE,
+                        defaults.getQuietHoursEndMinute()));
     }
 
     public static void sendToSystemUi(Context context, WatchdogConfig config) {
         Intent intent = new Intent(WatchdogContract.ACTION_CONFIG_UPDATE)
                 .setPackage(WatchdogContract.SYSTEM_UI_PACKAGE)
                 .putExtra(
-                        WatchdogContract.EXTRA_PROTOCOL_VERSION,
-                        WatchdogContract.PROTOCOL_VERSION)
+                WatchdogContract.EXTRA_PROTOCOL_VERSION,
+                WatchdogContract.PROTOCOL_VERSION)
                 .putExtra(
                         WatchdogContract.EXTRA_PROTOCOL_TOKEN,
                         WatchdogContract.PROTOCOL_TOKEN)
@@ -156,7 +196,22 @@ public final class WatchdogConfigStore {
                         config.isForegroundRecoveryEnabled())
                 .putExtra(
                         WatchdogContract.EXTRA_FOREGROUND_RECOVERY_INTERVAL_MINUTES,
-                        config.getForegroundRecoveryIntervalMinutes());
+                        config.getForegroundRecoveryIntervalMinutes())
+                .putExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_ENABLED,
+                        config.isQuietHoursEnabled())
+                .putExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_START_HOUR,
+                        config.getQuietHoursStartHour())
+                .putExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_START_MINUTE,
+                        config.getQuietHoursStartMinute())
+                .putExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_END_HOUR,
+                        config.getQuietHoursEndHour())
+                .putExtra(
+                        WatchdogContract.EXTRA_QUIET_HOURS_END_MINUTE,
+                        config.getQuietHoursEndMinute());
         context.sendBroadcast(intent);
     }
 }

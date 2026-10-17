@@ -13,6 +13,11 @@ final class WatchdogLogFormatter {
     }
 
     static String config(WatchdogConfig config) {
+        String quietHoursSummary = config.isQuietHoursEnabled()
+                ? String.format(Locale.getDefault(), "，夜间免打扰=是（%02d:%02d-%02d:%02d）",
+                        config.getQuietHoursStartHour(), config.getQuietHoursStartMinute(),
+                        config.getQuietHoursEndHour(), config.getQuietHoursEndMinute())
+                : "，夜间免打扰=否";
         return "启用=" + yesNo(config.isEnabled())
                 + "，启动宽限=" + config.getStartupGraceMinutes() + "分钟"
                 + "，心跳超时=" + config.getHeartbeatTimeoutMinutes() + "分钟"
@@ -23,7 +28,8 @@ final class WatchdogLogFormatter {
                 + "，root 硬恢复=" + yesNo(config.isHardRecoveryEnabled())
                 + "，锁屏前台拉起=" + yesNo(config.isForegroundRecoveryEnabled())
                 + "，前台拉起间隔=" + config.getForegroundRecoveryIntervalMinutes()
-                + "分钟";
+                + "分钟"
+                + quietHoursSummary;
     }
 
     static String elapsedRealtime(

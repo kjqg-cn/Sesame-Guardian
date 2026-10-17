@@ -1,6 +1,7 @@
 package io.github.lazyimmortal.sesamewatchdog.ui;
 
 import android.app.Activity;
+import android.app.TimePickerDialog;
 import android.graphics.drawable.ColorDrawable;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -23,6 +24,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Locale;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -43,6 +46,13 @@ public final class MainActivity extends Activity {
     private EditText executionStallInput;
     private Switch foregroundRecoverySwitch;
     private EditText foregroundRecoveryIntervalInput;
+    private Switch quietHoursSwitch;
+    private Button quietHoursStartTimeButton;
+    private Button quietHoursEndTimeButton;
+    private int quietHoursStartHour;
+    private int quietHoursStartMinute;
+    private int quietHoursEndHour;
+    private int quietHoursEndMinute;
     private boolean isModuleActive;
 
     @Override
@@ -141,24 +151,24 @@ public final class MainActivity extends Activity {
         LinearLayout masterPanel = createPanel();
         addSectionTitle(masterPanel, "守护服务");
         enabledSwitch = new Switch(this);
-        enabledSwitch.setText("启用守护");
-        enabledSwitch.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         enabledSwitch.setChecked(config.isEnabled());
-        masterPanel.addView(enabledSwitch, matchWidth());
-        addDescription(masterPanel, "关闭后停止状态检查、诊断和自动操作。", false);
+        masterPanel.addView(createSwitchRow(
+                "启用守护",
+                "关闭后停止状态检查、诊断和自动操作",
+                enabledSwitch), matchWidth());
         addPanel(scrollableContent, masterPanel);
 
         LinearLayout foregroundPanel = createPanel();
         addSectionTitle(foregroundPanel, "前台保活");
+
         foregroundRecoverySwitch = new Switch(this);
-        foregroundRecoverySwitch.setText("锁屏时拉起支付宝");
-        foregroundRecoverySwitch.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         foregroundRecoverySwitch.setChecked(config.isForegroundRecoveryEnabled());
-        foregroundPanel.addView(foregroundRecoverySwitch, matchWidth());
-        addDescription(
-                foregroundPanel,
-                "开启后优先根据计划时间按需唤醒，减少锁屏无效亮屏。",
-                false);
+        foregroundPanel.addView(createSwitchRow(
+                "锁屏时拉起支付宝",
+                "开启后优先根据计划时间按需唤醒，减少无效亮屏",
+                foregroundRecoverySwitch), matchWidth());
+
+        foregroundPanel.addView(createDivider());
 
         foregroundRecoveryIntervalInput = addMinutesField(
                 foregroundPanel,
@@ -166,6 +176,63 @@ public final class MainActivity extends Activity {
                 config.getForegroundRecoveryIntervalMinutes(),
                 "优先在 Sesame-GR 计划时间前按需唤醒；当计划时间缺失、计划逾期或心跳异常时，按此间隔保底拉起。");
         addPanel(scrollableContent, foregroundPanel);
+
+        LinearLayout quietHoursPanel = createPanel();
+        addSectionTitle(quietHoursPanel, "夜间免打扰");
+
+        quietHoursSwitch = new Switch(this);
+        quietHoursSwitch.setChecked(config.isQuietHoursEnabled());
+        quietHoursPanel.addView(createSwitchRow(
+                "夜间免打扰",
+                "设定时段内暂停锁屏唤醒与主动自愈，仅被动监控",
+                quietHoursSwitch), matchWidth());
+
+        quietHoursPanel.addView(createDivider());
+
+        quietHoursStartHour = config.getQuietHoursStartHour();
+        quietHoursStartMinute = config.getQuietHoursStartMinute();
+        quietHoursEndHour = config.getQuietHoursEndHour();
+        quietHoursEndMinute = config.getQuietHoursEndMinute();
+
+        LinearLayout quietTimeRow = new LinearLayout(this);
+        quietTimeRow.setOrientation(LinearLayout.HORIZONTAL);
+        quietTimeRow.setGravity(Gravity.CENTER_VERTICAL);
+        quietTimeRow.setPadding(0, dp(4), 0, dp(4));
+
+        LinearLayout quietTimeTexts = createItemTitleWithSubtitle(
+                "免打扰时段",
+                "支持跨午夜；开始与结束相同时不生效");
+        quietTimeRow.addView(quietTimeTexts, weightedWidth());
+
+        LinearLayout.LayoutParams timeBtnParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+
+        quietHoursStartTimeButton = createTimePickerButton(
+                formatTime(quietHoursStartHour, quietHoursStartMinute),
+                "免打扰开始时间");
+        quietHoursStartTimeButton.setOnClickListener(v -> showTimePicker(true));
+        quietTimeRow.addView(quietHoursStartTimeButton, timeBtnParams);
+
+        TextView quietTimeSeparator = new TextView(this);
+        quietTimeSeparator.setText(" 至 ");
+        quietTimeSeparator.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        quietTimeSeparator.setTextColor(Color.rgb(102, 112, 133));
+        quietTimeSeparator.setPadding(dp(6), 0, dp(6), 0);
+        quietTimeRow.addView(quietTimeSeparator);
+
+        quietHoursEndTimeButton = createTimePickerButton(
+                formatTime(quietHoursEndHour, quietHoursEndMinute),
+                "免打扰结束时间");
+        quietHoursEndTimeButton.setOnClickListener(v -> showTimePicker(false));
+        quietTimeRow.addView(quietHoursEndTimeButton, timeBtnParams);
+
+        quietHoursPanel.addView(quietTimeRow, matchWidth());
+
+        quietHoursSwitch.setOnCheckedChangeListener((btn, isChecked) -> updateQuietHoursControlsState());
+        updateQuietHoursControlsState();
+
+        addPanel(scrollableContent, quietHoursPanel);
 
         LinearLayout diagnosticPanel = createPanel();
         addSectionTitle(diagnosticPanel, "诊断阈值");
@@ -200,6 +267,7 @@ public final class MainActivity extends Activity {
             enabledSwitch.setEnabled(false);
             foregroundRecoverySwitch.setEnabled(false);
             foregroundRecoveryIntervalInput.setEnabled(false);
+            quietHoursSwitch.setEnabled(false);
             startupGraceInput.setEnabled(false);
             heartbeatTimeoutInput.setEnabled(false);
             nextOverdueInput.setEnabled(false);
@@ -317,6 +385,59 @@ public final class MainActivity extends Activity {
         sectionTitle.setTypeface(null, android.graphics.Typeface.BOLD);
         sectionTitle.setPadding(0, 0, 0, dp(6));
         content.addView(sectionTitle, matchWidth());
+    }
+
+    private LinearLayout createItemTitleWithSubtitle(String title, String subtitle) {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        titleView.setTextColor(Color.rgb(52, 64, 84));
+        container.addView(titleView, matchWidth());
+
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView subtitleView = new TextView(this);
+            subtitleView.setText(subtitle);
+            subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            subtitleView.setTextColor(Color.rgb(102, 112, 133));
+            subtitleView.setPadding(0, dp(2), 0, 0);
+            container.addView(subtitleView, matchWidth());
+        }
+        return container;
+    }
+
+    private LinearLayout createSwitchRow(String title, String subtitle, Switch sw) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(4), 0, dp(4));
+
+        LinearLayout texts = createItemTitleWithSubtitle(title, subtitle);
+        row.addView(texts, weightedWidth());
+
+        sw.setContentDescription(title);
+        row.addView(sw);
+
+        row.setOnClickListener(v -> {
+            if (isModuleActive && sw.isEnabled()) {
+                sw.toggle();
+            }
+        });
+        return row;
+    }
+
+    private View createDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.rgb(242, 244, 247));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1));
+        params.topMargin = dp(6);
+        params.bottomMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private void addDescription(LinearLayout content, String text, boolean compact) {
@@ -440,7 +561,12 @@ public final class MainActivity extends Activity {
                 foregroundRecoverySwitch.isChecked(),
                 readMinutes(
                         foregroundRecoveryIntervalInput,
-                        defaults.getForegroundRecoveryIntervalMinutes()));
+                        defaults.getForegroundRecoveryIntervalMinutes()),
+                quietHoursSwitch.isChecked(),
+                quietHoursStartHour,
+                quietHoursStartMinute,
+                quietHoursEndHour,
+                quietHoursEndMinute);
 
         WatchdogConfigStore.save(this, config);
         updateInputs(config);
@@ -489,6 +615,89 @@ public final class MainActivity extends Activity {
         foregroundRecoverySwitch.setChecked(config.isForegroundRecoveryEnabled());
         foregroundRecoveryIntervalInput.setText(
                 String.valueOf(config.getForegroundRecoveryIntervalMinutes()));
+        quietHoursSwitch.setChecked(config.isQuietHoursEnabled());
+        quietHoursStartHour = config.getQuietHoursStartHour();
+        quietHoursStartMinute = config.getQuietHoursStartMinute();
+        quietHoursEndHour = config.getQuietHoursEndHour();
+        quietHoursEndMinute = config.getQuietHoursEndMinute();
+        updateQuietHoursTimeButtons();
+        updateQuietHoursControlsState();
+    }
+
+    private Button createTimePickerButton(String text, String contentDescription) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setContentDescription(contentDescription);
+        button.setAllCaps(false);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
+        button.setMinWidth(dp(72));
+        button.setMinimumWidth(dp(72));
+        button.setPadding(dp(12), 0, dp(12), 0);
+        return button;
+    }
+
+    private void updateQuietHoursControlsState() {
+        boolean controlsEnabled = isModuleActive && quietHoursSwitch != null && quietHoursSwitch.isChecked();
+        if (quietHoursStartTimeButton != null) {
+            quietHoursStartTimeButton.setEnabled(controlsEnabled);
+            quietHoursStartTimeButton.setTextColor(controlsEnabled
+                    ? Color.rgb(42, 103, 218)
+                    : Color.rgb(152, 162, 179));
+            quietHoursStartTimeButton.setBackgroundTintList(
+                    ColorStateList.valueOf(controlsEnabled
+                            ? Color.rgb(238, 244, 255)
+                            : Color.rgb(242, 244, 247)));
+        }
+        if (quietHoursEndTimeButton != null) {
+            quietHoursEndTimeButton.setEnabled(controlsEnabled);
+            quietHoursEndTimeButton.setTextColor(controlsEnabled
+                    ? Color.rgb(42, 103, 218)
+                    : Color.rgb(152, 162, 179));
+            quietHoursEndTimeButton.setBackgroundTintList(
+                    ColorStateList.valueOf(controlsEnabled
+                            ? Color.rgb(238, 244, 255)
+                            : Color.rgb(242, 244, 247)));
+        }
+    }
+
+    private void showTimePicker(boolean isStart) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        int initialHour = isStart ? quietHoursStartHour : quietHoursEndHour;
+        int initialMinute = isStart ? quietHoursStartMinute : quietHoursEndMinute;
+        TimePickerDialog dialog = new TimePickerDialog(
+                this,
+                (view, hourOfDay, minute) -> {
+                    if (isStart) {
+                        quietHoursStartHour = hourOfDay;
+                        quietHoursStartMinute = minute;
+                    } else {
+                        quietHoursEndHour = hourOfDay;
+                        quietHoursEndMinute = minute;
+                    }
+                    updateQuietHoursTimeButtons();
+                },
+                initialHour,
+                initialMinute,
+                true);
+        dialog.setTitle(isStart ? "设置免打扰开始时间" : "设置免打扰结束时间");
+        dialog.show();
+    }
+
+    private void updateQuietHoursTimeButtons() {
+        if (quietHoursStartTimeButton != null) {
+            quietHoursStartTimeButton.setText(formatTime(quietHoursStartHour, quietHoursStartMinute));
+        }
+        if (quietHoursEndTimeButton != null) {
+            quietHoursEndTimeButton.setText(formatTime(quietHoursEndHour, quietHoursEndMinute));
+        }
+    }
+
+    private static String formatTime(int hour, int minute) {
+        return String.format(Locale.getDefault(), "%02d:%02d", hour, minute);
     }
 
     private static int readMinutes(EditText input, int defaultValue) {

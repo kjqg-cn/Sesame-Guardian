@@ -45,12 +45,15 @@
   - **涉及组件**：`SystemUiWatchdog.java`, `SystemUiWatchdogState.java`, `MainActivity.java`, `SystemUiWatchdogStateTest.java`
   - **预期效果**：锁屏期间的亮屏次数预期降低 70%~80% 以上。
 
-- [ ] **1.3 夜间免打扰 / 节能时段**
+- [x] **1.3 夜间免打扰 / 节能时段**
   - **现状分析**：夜间（如 01:00 - 06:30）几乎没有蚂蚁森林能量生成，锁屏亮屏容易打扰睡眠并造成待机掉电。
   - **实现方案**：
-    - 在配置中增加“免打扰时段”（默认可预设为 `01:00 - 06:30`，支持在设置页开关与自定义时间范围）。
-    - 在免打扰期间：可选择“完全不点亮屏幕”（仅被动记录）或“将拉起保底间隔自动延长至 30~60 分钟”。
-  - **涉及组件**：`WatchdogConfig.java`, `WatchdogConfigStore.java`, `MainActivity.java`, `SystemUiWatchdog.java`
+    - 在 `WatchdogConfig` 中增加免打扰配置项（默认预设为 `01:00 - 06:30`，默认关闭 `quietHoursEnabled = false`），支持小时与分钟的合法范围校验；
+    - 在 `WatchdogConfig.isInQuietHours(wallClockMillis)` 中提供日内与跨午夜（如 `23:00 - 06:30`）时段判断；
+    - 在 `SystemUiWatchdogState.checkForegroundRecoveryTrigger()` 与 `SystemUiWatchdog` 恢复链路中增加全局免打扰拦截，免打扰期间完全抑制智能按需亮屏、保底拉起以及软/硬故障恢复流程（不发广播、不调用 Root 重启、不亮屏），仅保留被动心跳与通知观察；离开免打扰时段后自动恢复正常拉起与故障自愈；
+    - 在 `MainActivity` 中提供独立的夜间免打扰卡片面板、列表行点击切换与 `TimePickerDialog` 原生时间选择器，未激活时置灰保护；日志格式化同步展示免打扰状态与区间。
+  - **涉及组件**：`WatchdogConfig.java`, `WatchdogConfigStore.java`, `WatchdogContract.java`, `SystemUiWatchdog.java`, `SystemUiWatchdogState.java`, `WatchdogLogFormatter.java`, `MainActivity.java`, `WatchdogConfigTest.java`, `SystemUiWatchdogStateTest.java`, `WatchdogLogFormatterTest.java`
+  - **预期效果**：夜间免打扰时段内锁屏零唤醒、零亮屏、零主动恢复打扰，彻底杜绝夜间无效拉起与睡眠打扰。
 
 - [ ] **1.4 唤醒后快速主动熄屏与退回后台**
   - **现状分析**：拉起支付宝后，持有 `SCREEN_BRIGHT_WAKE_LOCK` 达 30 秒，屏幕需等待系统锁屏超时才会熄灭。

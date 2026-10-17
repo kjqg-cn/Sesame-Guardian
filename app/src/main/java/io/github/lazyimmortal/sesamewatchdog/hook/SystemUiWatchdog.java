@@ -248,12 +248,15 @@ final class SystemUiWatchdog {
         lastFault = null;
         if (!newConfig.isEnabled()
                 || !newConfig.isAutoSoftRecovery()
+                || newConfig.isInQuietHours(System.currentTimeMillis())
                 || (!newConfig.isHardRecoveryEnabled()
                 && RECOVERY_SEQUENCE.getStage()
                 == RecoverySequence.Stage.WAITING_HARD_RECOVERY_RESULT)) {
             cancelRecoverySequence();
         }
-        if (!newConfig.isEnabled() || !newConfig.isForegroundRecoveryEnabled()) {
+        if (!newConfig.isEnabled()
+                || !newConfig.isForegroundRecoveryEnabled()
+                || newConfig.isInQuietHours(System.currentTimeMillis())) {
             cancelForegroundRecovery();
         }
         scheduleCheck();
@@ -364,14 +367,22 @@ final class SystemUiWatchdog {
                         + "仍未收到支付宝 Activity onResume"
                         + "，请求编号=" + requestId);
 
-        if (config == null || !config.isHardRecoveryEnabled()) {
-            XposedLog.log("跳过锁屏前台拉起后的 root 硬回退：root 硬恢复未开启");
+        if (config == null
+                || !config.isHardRecoveryEnabled()
+                || config.isInQuietHours(System.currentTimeMillis())) {
+            if (config != null && config.isInQuietHours(System.currentTimeMillis())) {
+                XposedLog.log("跳过锁屏前台拉起后的 root 硬回退：当前处于夜间免打扰时段");
+            } else {
+                XposedLog.log("跳过锁屏前台拉起后的 root 硬回退：root 硬恢复未开启");
+            }
+            releaseForegroundWakeLock();
             SystemUiKeyguardBridge.setOccluded(false);
             return;
         }
 
         if (foregroundHardRecoveryAttempted) {
             XposedLog.log("锁屏前台拉起和一次 root 硬回退均未收到 Activity onResume");
+            releaseForegroundWakeLock();
             SystemUiKeyguardBridge.setOccluded(false);
             return;
         }
@@ -650,7 +661,8 @@ final class SystemUiWatchdog {
         }
 
         if (fault != SystemUiWatchdogState.Fault.EXECUTION_PROGRESS_STALE
-                || RECOVERY_SEQUENCE.getStage() != RecoverySequence.Stage.IDLE) {
+                || RECOVERY_SEQUENCE.getStage() != RecoverySequence.Stage.IDLE
+                || config.isInQuietHours(System.currentTimeMillis())) {
             return;
         }
 
@@ -675,6 +687,11 @@ final class SystemUiWatchdog {
 
     private static void checkRecoveryResult() {
         try {
+            if (config != null && config.isInQuietHours(System.currentTimeMillis())) {
+                XposedLog.log("当前处于夜间免打扰时段，中止正在进行的故障恢复流程");
+                cancelRecoverySequence();
+                return;
+            }
             RecoverySequence.Stage previousStage = RECOVERY_SEQUENCE.getStage();
             RecoverySequence.Decision decision = RECOVERY_SEQUENCE.onObservationTimeout(
                     state.getLastExecutionElapsedRealtime());

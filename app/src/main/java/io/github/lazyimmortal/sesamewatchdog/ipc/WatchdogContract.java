@@ -62,6 +62,11 @@ public final class WatchdogContract {
             "foregroundRecoveryEnabled";
     public static final String EXTRA_FOREGROUND_RECOVERY_INTERVAL_MINUTES =
             "foregroundRecoveryIntervalMinutes";
+    public static final String EXTRA_QUIET_HOURS_ENABLED = "quietHoursEnabled";
+    public static final String EXTRA_QUIET_HOURS_START_HOUR = "quietHoursStartHour";
+    public static final String EXTRA_QUIET_HOURS_START_MINUTE = "quietHoursStartMinute";
+    public static final String EXTRA_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
+    public static final String EXTRA_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
     public static final String EXTRA_HARD_RECOVERY_REQUEST_ID = "hardRecoveryRequestId";
     public static final String EXTRA_TARGET_USER_ID = "targetUserId";
     public static final String EXTRA_HARD_RECOVERY_SUCCESS = "hardRecoverySuccess";

@@ -1,5 +1,6 @@
 package io.github.lazyimmortal.sesamewatchdog.config;
 
+import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 
 public final class WatchdogConfig {
@@ -12,6 +13,11 @@ public final class WatchdogConfig {
     public static final boolean DEFAULT_HARD_RECOVERY_ENABLED = false;
     public static final boolean DEFAULT_FOREGROUND_RECOVERY_ENABLED = true;
     public static final int DEFAULT_FOREGROUND_RECOVERY_INTERVAL_MINUTES = 5;
+    public static final boolean DEFAULT_QUIET_HOURS_ENABLED = false;
+    public static final int DEFAULT_QUIET_HOURS_START_HOUR = 1;
+    public static final int DEFAULT_QUIET_HOURS_START_MINUTE = 0;
+    public static final int DEFAULT_QUIET_HOURS_END_HOUR = 6;
+    public static final int DEFAULT_QUIET_HOURS_END_MINUTE = 30;
 
     private static final int MIN_THRESHOLD_MINUTES = 1;
     private static final int MAX_THRESHOLD_MINUTES = 24 * 60;
@@ -26,6 +32,11 @@ public final class WatchdogConfig {
     private final boolean hardRecoveryEnabled;
     private final boolean foregroundRecoveryEnabled;
     private final int foregroundRecoveryIntervalMinutes;
+    private final boolean quietHoursEnabled;
+    private final int quietHoursStartHour;
+    private final int quietHoursStartMinute;
+    private final int quietHoursEndHour;
+    private final int quietHoursEndMinute;
 
     private WatchdogConfig(
             boolean enabled,
@@ -37,7 +48,12 @@ public final class WatchdogConfig {
             boolean autoSoftRecovery,
             boolean hardRecoveryEnabled,
             boolean foregroundRecoveryEnabled,
-            int foregroundRecoveryIntervalMinutes) {
+            int foregroundRecoveryIntervalMinutes,
+            boolean quietHoursEnabled,
+            int quietHoursStartHour,
+            int quietHoursStartMinute,
+            int quietHoursEndHour,
+            int quietHoursEndMinute) {
         this.enabled = enabled;
         this.startupGraceMinutes = clampMinutes(startupGraceMinutes);
         this.heartbeatTimeoutMinutes = clampMinutes(heartbeatTimeoutMinutes);
@@ -49,6 +65,11 @@ public final class WatchdogConfig {
         this.foregroundRecoveryEnabled = foregroundRecoveryEnabled;
         this.foregroundRecoveryIntervalMinutes = clampMinutes(
                 foregroundRecoveryIntervalMinutes);
+        this.quietHoursEnabled = quietHoursEnabled;
+        this.quietHoursStartHour = clampHour(quietHoursStartHour);
+        this.quietHoursStartMinute = clampMinute(quietHoursStartMinute);
+        this.quietHoursEndHour = clampHour(quietHoursEndHour);
+        this.quietHoursEndMinute = clampMinute(quietHoursEndMinute);
     }
 
     public static WatchdogConfig defaults() {
@@ -154,6 +175,40 @@ public final class WatchdogConfig {
             boolean hardRecoveryEnabled,
             boolean foregroundRecoveryEnabled,
             int foregroundRecoveryIntervalMinutes) {
+        return create(
+                enabled,
+                startupGraceMinutes,
+                heartbeatTimeoutMinutes,
+                nextOverdueMinutes,
+                runningTimeoutMinutes,
+                executionStallMinutes,
+                autoSoftRecovery,
+                hardRecoveryEnabled,
+                foregroundRecoveryEnabled,
+                foregroundRecoveryIntervalMinutes,
+                DEFAULT_QUIET_HOURS_ENABLED,
+                DEFAULT_QUIET_HOURS_START_HOUR,
+                DEFAULT_QUIET_HOURS_START_MINUTE,
+                DEFAULT_QUIET_HOURS_END_HOUR,
+                DEFAULT_QUIET_HOURS_END_MINUTE);
+    }
+
+    public static WatchdogConfig create(
+            boolean enabled,
+            int startupGraceMinutes,
+            int heartbeatTimeoutMinutes,
+            int nextOverdueMinutes,
+            int runningTimeoutMinutes,
+            int executionStallMinutes,
+            boolean autoSoftRecovery,
+            boolean hardRecoveryEnabled,
+            boolean foregroundRecoveryEnabled,
+            int foregroundRecoveryIntervalMinutes,
+            boolean quietHoursEnabled,
+            int quietHoursStartHour,
+            int quietHoursStartMinute,
+            int quietHoursEndHour,
+            int quietHoursEndMinute) {
         return new WatchdogConfig(
                 enabled,
                 startupGraceMinutes,
@@ -164,7 +219,12 @@ public final class WatchdogConfig {
                 autoSoftRecovery,
                 hardRecoveryEnabled,
                 foregroundRecoveryEnabled,
-                foregroundRecoveryIntervalMinutes);
+                foregroundRecoveryIntervalMinutes,
+                quietHoursEnabled,
+                quietHoursStartHour,
+                quietHoursStartMinute,
+                quietHoursEndHour,
+                quietHoursEndMinute);
     }
 
     public boolean isEnabled() {
@@ -207,6 +267,45 @@ public final class WatchdogConfig {
         return foregroundRecoveryIntervalMinutes;
     }
 
+    public boolean isQuietHoursEnabled() {
+        return quietHoursEnabled;
+    }
+
+    public int getQuietHoursStartHour() {
+        return quietHoursStartHour;
+    }
+
+    public int getQuietHoursStartMinute() {
+        return quietHoursStartMinute;
+    }
+
+    public int getQuietHoursEndHour() {
+        return quietHoursEndHour;
+    }
+
+    public int getQuietHoursEndMinute() {
+        return quietHoursEndMinute;
+    }
+
+    public boolean isInQuietHours(long wallClockMillis) {
+        if (!quietHoursEnabled) {
+            return false;
+        }
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(wallClockMillis);
+        int currentMinuteOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE);
+        int startMinuteOfDay = quietHoursStartHour * 60 + quietHoursStartMinute;
+        int endMinuteOfDay = quietHoursEndHour * 60 + quietHoursEndMinute;
+        if (startMinuteOfDay == endMinuteOfDay) {
+            return false;
+        }
+        if (startMinuteOfDay < endMinuteOfDay) {
+            return currentMinuteOfDay >= startMinuteOfDay && currentMinuteOfDay < endMinuteOfDay;
+        } else {
+            return currentMinuteOfDay >= startMinuteOfDay || currentMinuteOfDay < endMinuteOfDay;
+        }
+    }
+
     public long getStartupGraceMillis() {
         return TimeUnit.MINUTES.toMillis(startupGraceMinutes);
     }
@@ -243,10 +342,21 @@ public final class WatchdogConfig {
                 + ", hardRecoveryEnabled=" + hardRecoveryEnabled
                 + ", foregroundRecoveryEnabled=" + foregroundRecoveryEnabled
                 + ", foregroundRecoveryIntervalMinutes="
-                + foregroundRecoveryIntervalMinutes;
+                + foregroundRecoveryIntervalMinutes
+                + ", quietHoursEnabled=" + quietHoursEnabled
+                + ", quietHours=" + String.format("%02d:%02d-%02d:%02d",
+                quietHoursStartHour, quietHoursStartMinute, quietHoursEndHour, quietHoursEndMinute);
     }
 
     private static int clampMinutes(int value) {
         return Math.max(MIN_THRESHOLD_MINUTES, Math.min(MAX_THRESHOLD_MINUTES, value));
+    }
+
+    private static int clampHour(int value) {
+        return Math.max(0, Math.min(23, value));
+    }
+
+    private static int clampMinute(int value) {
+        return Math.max(0, Math.min(59, value));
     }
 }

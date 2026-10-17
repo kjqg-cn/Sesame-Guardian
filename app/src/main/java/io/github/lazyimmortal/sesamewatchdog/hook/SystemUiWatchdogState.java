@@ -241,7 +241,24 @@ final class SystemUiWatchdogState {
             WatchdogConfig config,
             long nowElapsedRealtime,
             long lastForegroundRecoveryElapsedRealtime) {
+        return checkForegroundRecoveryTrigger(
+                config,
+                nowElapsedRealtime,
+                lastForegroundRecoveryElapsedRealtime,
+                System.currentTimeMillis());
+    }
+
+    ForegroundRecoveryTrigger checkForegroundRecoveryTrigger(
+            WatchdogConfig config,
+            long nowElapsedRealtime,
+            long lastForegroundRecoveryElapsedRealtime,
+            long nowWallClockMillis) {
         if (config == null || !config.isEnabled() || !config.isForegroundRecoveryEnabled()) {
+            return ForegroundRecoveryTrigger.NONE;
+        }
+
+        // 0. 免打扰判定：若处于夜间免打扰时段，直接抑制所有锁屏拉起操作，避免打扰与无效耗电
+        if (config.isInQuietHours(nowWallClockMillis)) {
             return ForegroundRecoveryTrigger.NONE;
         }
 

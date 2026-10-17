@@ -2,6 +2,8 @@ package io.github.lazyimmortal.sesamewatchdog.hook;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
@@ -611,6 +613,77 @@ public final class SystemUiWatchdogStateTest {
         assertEquals(
                 SystemUiWatchdogState.ForegroundRecoveryTrigger.FALLBACK_INTERVAL,
                 state.checkForegroundRecoveryTrigger(config, now, lastRecovery));
+    }
+
+    @Test
+    public void quietHoursSuppressesScheduledDueTrigger() {
+        // 免打扰时段 01:00 - 06:30
+        WatchdogConfig config = WatchdogConfig.create(
+                true, 15, 10, 10, 45, 60, false, false, true, 5,
+                true, 1, 0, 6, 30);
+        SystemUiWatchdogState state = new SystemUiWatchdogState(1_000L);
+        state.onHeartbeat(100, 2_000L);
+
+        // 计划时间距离当前 60 秒后（落在 90 秒提前唤醒窗口内）
+        long target = 2_000L + 60_000L;
+        state.onNotification(
+                100,
+                NotificationStatusParser.StatusKind.NEXT_EXECUTION,
+                2_000L,
+                target,
+                null);
+
+        long nowElapsed = 2_000L;
+        long lastRecovery = 0L;
+
+        // 当前墙上时间为凌晨 02:00（处于免打扰时段）
+        long wallClockInQuietHours = atTime(2, 0);
+        assertEquals(
+                SystemUiWatchdogState.ForegroundRecoveryTrigger.NONE,
+                state.checkForegroundRecoveryTrigger(
+                        config, nowElapsed, lastRecovery, wallClockInQuietHours));
+
+        // 当前墙上时间为上午 08:00（不在免打扰时段）
+        long wallClockOutside = atTime(8, 0);
+        assertEquals(
+                SystemUiWatchdogState.ForegroundRecoveryTrigger.SCHEDULED_DUE,
+                state.checkForegroundRecoveryTrigger(
+                        config, nowElapsed, lastRecovery, wallClockOutside));
+    }
+
+    @Test
+    public void quietHoursSuppressesIntervalFallbackTrigger() {
+        // 免打扰时段 01:00 - 06:30
+        WatchdogConfig config = WatchdogConfig.create(
+                true, 15, 10, 10, 45, 60, false, false, true, 5,
+                true, 1, 0, 6, 30);
+        SystemUiWatchdogState state = new SystemUiWatchdogState(1_000L);
+        state.onHeartbeat(100, 2_000L);
+
+        // 无计划时间，已超过保底间隔
+        long nowElapsed = 2_000L + minutes(10);
+        long lastRecovery = 2_000L;
+
+        // 处于免打扰时段（03:00），完全抑制保底拉起
+        long wallClockInQuietHours = atTime(3, 0);
+        assertEquals(
+                SystemUiWatchdogState.ForegroundRecoveryTrigger.NONE,
+                state.checkForegroundRecoveryTrigger(
+                        config, nowElapsed, lastRecovery, wallClockInQuietHours));
+
+        // 退出免打扰时段（06:31），立即恢复保底拉起
+        long wallClockAfterQuietHours = atTime(6, 31);
+        assertEquals(
+                SystemUiWatchdogState.ForegroundRecoveryTrigger.FALLBACK_INTERVAL,
+                state.checkForegroundRecoveryTrigger(
+                        config, nowElapsed, lastRecovery, wallClockAfterQuietHours));
+    }
+
+    private static long atTime(int hour, int minute) {
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        calendar.set(2026, Calendar.OCTOBER, 18, hour, minute, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        return calendar.getTimeInMillis();
     }
 
     private static long minutes(long value) {

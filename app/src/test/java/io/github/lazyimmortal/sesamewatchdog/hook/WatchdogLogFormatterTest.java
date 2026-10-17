@@ -1,6 +1,7 @@
 package io.github.lazyimmortal.sesamewatchdog.hook;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Calendar;
 import java.util.TimeZone;
@@ -8,6 +9,8 @@ import java.util.TimeZone;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import io.github.lazyimmortal.sesamewatchdog.config.WatchdogConfig;
 
 public final class WatchdogLogFormatterTest {
     private static final TimeZone TEST_TIME_ZONE = TimeZone.getTimeZone("Asia/Shanghai");
@@ -56,6 +59,19 @@ public final class WatchdogLogFormatterTest {
                 "等待下次执行",
                 WatchdogLogFormatter.status(
                         NotificationStatusParser.StatusKind.NEXT_EXECUTION));
+    }
+
+    @Test
+    public void formatsConfigWithQuietHours() {
+        WatchdogConfig defaultDisabled = WatchdogConfig.defaults();
+        String defaultSummary = WatchdogLogFormatter.config(defaultDisabled);
+        assertTrue(defaultSummary.contains("，夜间免打扰=否"));
+
+        WatchdogConfig enabled = WatchdogConfig.create(
+                true, 15, 10, 10, 45, 60, false, false, true, 5,
+                true, 1, 0, 6, 30);
+        String enabledSummary = WatchdogLogFormatter.config(enabled);
+        assertTrue(enabledSummary.contains("，夜间免打扰=是（01:00-06:30）"));
     }
 
     private static long at(int year, int month, int day, int hour, int minute, int second) {
