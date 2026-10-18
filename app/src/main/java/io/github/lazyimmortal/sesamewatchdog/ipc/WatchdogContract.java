@@ -35,6 +35,8 @@ public final class WatchdogContract {
             "requestHardRecovery";
     public static final String METHOD_BRING_ALIPAY_TO_FRONT =
             "bringAlipayToFront";
+    public static final String METHOD_REQUEST_GO_TO_SLEEP =
+            "requestGoToSleep";
 
     public static final String EXTRA_PROTOCOL_VERSION = "protocolVersion";
     public static final String EXTRA_PROTOCOL_TOKEN = "protocolToken";
@@ -67,6 +69,7 @@ public final class WatchdogContract {
     public static final String EXTRA_QUIET_HOURS_START_MINUTE = "quietHoursStartMinute";
     public static final String EXTRA_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
     public static final String EXTRA_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
+    public static final String EXTRA_FAST_SLEEP_ENABLED = "fastSleepEnabled";
     public static final String EXTRA_HARD_RECOVERY_REQUEST_ID = "hardRecoveryRequestId";
     public static final String EXTRA_TARGET_USER_ID = "targetUserId";
     public static final String EXTRA_HARD_RECOVERY_SUCCESS = "hardRecoverySuccess";

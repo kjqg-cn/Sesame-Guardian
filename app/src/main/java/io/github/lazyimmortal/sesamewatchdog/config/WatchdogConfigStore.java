@@ -25,6 +25,7 @@ public final class WatchdogConfigStore {
     private static final String KEY_QUIET_HOURS_START_MINUTE = "quietHoursStartMinute";
     private static final String KEY_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
     private static final String KEY_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
+    private static final String KEY_FAST_SLEEP_ENABLED = "fastSleepEnabled";
     private static final String KEY_POLICY_VERSION = "policyVersion";
     private static final int RECOMMENDED_POLICY_VERSION = 2;
 
@@ -79,7 +80,10 @@ public final class WatchdogConfigStore {
                         defaults.getQuietHoursEndHour()),
                 preferences.getInt(
                         KEY_QUIET_HOURS_END_MINUTE,
-                        defaults.getQuietHoursEndMinute()));
+                        defaults.getQuietHoursEndMinute()),
+                preferences.getBoolean(
+                        KEY_FAST_SLEEP_ENABLED,
+                        defaults.isFastSleepEnabled()));
         if (migrateRecoveryPolicy) {
             save(context, config);
         }
@@ -108,6 +112,7 @@ public final class WatchdogConfigStore {
                 .putInt(KEY_QUIET_HOURS_START_MINUTE, config.getQuietHoursStartMinute())
                 .putInt(KEY_QUIET_HOURS_END_HOUR, config.getQuietHoursEndHour())
                 .putInt(KEY_QUIET_HOURS_END_MINUTE, config.getQuietHoursEndMinute())
+                .putBoolean(KEY_FAST_SLEEP_ENABLED, config.isFastSleepEnabled())
                 .putInt(KEY_POLICY_VERSION, RECOMMENDED_POLICY_VERSION)
                 .apply();
     }
@@ -157,7 +162,10 @@ public final class WatchdogConfigStore {
                         defaults.getQuietHoursEndHour()),
                 intent.getIntExtra(
                         WatchdogContract.EXTRA_QUIET_HOURS_END_MINUTE,
-                        defaults.getQuietHoursEndMinute()));
+                        defaults.getQuietHoursEndMinute()),
+                intent.getBooleanExtra(
+                        WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
+                        defaults.isFastSleepEnabled()));
     }
 
     public static void sendToSystemUi(Context context, WatchdogConfig config) {
@@ -211,7 +219,10 @@ public final class WatchdogConfigStore {
                         config.getQuietHoursEndHour())
                 .putExtra(
                         WatchdogContract.EXTRA_QUIET_HOURS_END_MINUTE,
-                        config.getQuietHoursEndMinute());
+                        config.getQuietHoursEndMinute())
+                .putExtra(
+                        WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
+                        config.isFastSleepEnabled());
         context.sendBroadcast(intent);
     }
 }

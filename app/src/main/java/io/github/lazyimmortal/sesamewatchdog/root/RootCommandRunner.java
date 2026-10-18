@@ -30,47 +30,87 @@ final class RootCommandRunner {
     }
 
     static Result recoverAlipay(int userId, boolean wakeScreen, long requestId) {
+        return recoverAlipay(userId, wakeScreen, requestId, true);
+    }
+
+    static Result recoverAlipay(
+            int userId,
+            boolean wakeScreen,
+            long requestId,
+            boolean fastSleepEnabled) {
         if (userId < 0 || userId > 999) {
             return new Result(false, "支付宝用户 ID 不合法");
         }
-        String command = wakeCommand(wakeScreen)
-                + "am force-stop --user " + userId
-                + " com.eg.android.AlipayGphone"
-                + " && am start --user " + userId
-                + foregroundIntentArguments(requestId)
-                + " -n com.eg.android.AlipayGphone/.AlipayLogin";
-        return execute(command, HARD_RECOVERY_TIMEOUT_SECONDS);
+        return execute(
+                buildRecoverCommand(userId, wakeScreen, requestId, fastSleepEnabled),
+                HARD_RECOVERY_TIMEOUT_SECONDS);
+    }
+
+    static Result goToSleep() {
+        return execute("input keyevent 223", 5);
     }
 
     static Result bringAlipayToFront(
             int userId,
             long requestId,
             boolean wakeScreen) {
+        return bringAlipayToFront(userId, requestId, wakeScreen, true);
+    }
+
+    static Result bringAlipayToFront(
+            int userId,
+            long requestId,
+            boolean wakeScreen,
+            boolean fastSleepEnabled) {
         if (userId < 0 || userId > 999) {
             return new Result(false, "支付宝用户 ID 不合法");
         }
         if (requestId <= 0L) {
             return new Result(false, "前台拉起请求编号不合法");
         }
-        String command = wakeCommand(wakeScreen)
+        return execute(
+                buildBringToFrontCommand(userId, requestId, wakeScreen, fastSleepEnabled),
+                HARD_RECOVERY_TIMEOUT_SECONDS);
+    }
+
+    static String buildRecoverCommand(
+            int userId,
+            boolean wakeScreen,
+            long requestId,
+            boolean fastSleepEnabled) {
+        return wakeCommand(wakeScreen)
+                + "am force-stop --user " + userId
+                + " com.eg.android.AlipayGphone"
+                + " && am start --user " + userId
+                + foregroundIntentArguments(requestId, fastSleepEnabled)
+                + " -n com.eg.android.AlipayGphone/.AlipayLogin";
+    }
+
+    static String buildBringToFrontCommand(
+            int userId,
+            long requestId,
+            boolean wakeScreen,
+            boolean fastSleepEnabled) {
+        return wakeCommand(wakeScreen)
                 + "am start --user " + userId
                 + " -W"
-                + foregroundIntentArguments(requestId)
+                + foregroundIntentArguments(requestId, fastSleepEnabled)
                 + " -n com.eg.android.AlipayGphone/.AlipayLogin";
-        return execute(command, HARD_RECOVERY_TIMEOUT_SECONDS);
     }
 
     private static String wakeCommand(boolean wakeScreen) {
         return wakeScreen ? "input keyevent 26 && " : "";
     }
 
-    private static String foregroundIntentArguments(long requestId) {
+    private static String foregroundIntentArguments(long requestId, boolean fastSleepEnabled) {
         if (requestId <= 0L) {
             return "";
         }
         return " --ez " + WatchdogContract.EXTRA_FOREGROUND_RECOVERY + " true"
                 + " --el " + WatchdogContract.EXTRA_FOREGROUND_RECOVERY_REQUEST_ID
-                + " " + requestId;
+                + " " + requestId
+                + " --ez " + WatchdogContract.EXTRA_FAST_SLEEP_ENABLED
+                + " " + fastSleepEnabled;
     }
 
     private static Result execute(String command, long timeoutSeconds) {

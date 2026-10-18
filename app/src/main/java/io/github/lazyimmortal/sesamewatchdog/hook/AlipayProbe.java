@@ -58,6 +58,7 @@ final class AlipayProbe {
             return;
         }
         ProbeEventSender.initialize(context);
+        XposedLog.initialize(context, "支付宝");
         try {
             AlipayForegroundHook.install(context.getClassLoader());
         } catch (Throwable throwable) {

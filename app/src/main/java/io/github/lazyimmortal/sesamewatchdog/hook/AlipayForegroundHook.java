@@ -26,7 +26,9 @@ final class AlipayForegroundHook {
             "com.eg.android.AlipayGphone.AlipayLogin";
     private static final long VISIBLE_CHECK_INTERVAL_MILLIS = 500L;
     private static final int VISIBLE_CHECK_ATTEMPTS = 6;
+    private static final long FAST_SLEEP_BUFFER_MILLIS = 3000L;
     private static final AtomicBoolean HOOK_INSTALLED = new AtomicBoolean(false);
+    private static long lastTaskBackScheduledRequestId = 0L;
 
     private AlipayForegroundHook() {
     }
@@ -289,12 +291,13 @@ final class AlipayForegroundHook {
                 } else if (attemptsRemaining > 1) {
                     scheduleVisibleCheck(activity, attemptsRemaining - 1);
                 } else {
-                    XposedBridge.log(
-                            "SesameGuardian: 支付宝 Activity 已恢复但窗口仍未获得焦点"
+                    XposedLog.log(
+                            "支付宝 Activity 已恢复（安全锁屏遮挡下未获窗口焦点），确认生命周期就绪"
                                     + "，class=" + activity.getClass().getName());
+                    sendResumeEvent(activity);
                 }
             } catch (Throwable throwable) {
-                logError("确认支付宝 Activity 窗口可见性失败", throwable);
+                XposedLog.logError("确认支付宝 Activity 窗口可见性失败", throwable);
             }
         }, VISIBLE_CHECK_INTERVAL_MILLIS);
     }
@@ -341,6 +344,38 @@ final class AlipayForegroundHook {
                 SystemClock.elapsedRealtime(),
                 requestId,
                 activity.getClass().getName());
+        scheduleMoveTaskToBack(activity, requestId);
+    }
+
+    private static void scheduleMoveTaskToBack(Activity activity, long requestId) {
+        if (requestId <= 0L || requestId == lastTaskBackScheduledRequestId) {
+            return;
+        }
+        boolean fastSleepEnabled = activity.getIntent().getBooleanExtra(
+                WatchdogContract.EXTRA_FAST_SLEEP_ENABLED, true);
+        if (!fastSleepEnabled) {
+            return;
+        }
+        lastTaskBackScheduledRequestId = requestId;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+                    return;
+                }
+                android.app.KeyguardManager keyguardManager =
+                        (android.app.KeyguardManager) activity.getSystemService(
+                                android.content.Context.KEYGUARD_SERVICE);
+                if (keyguardManager != null && !keyguardManager.isKeyguardLocked()) {
+                    XposedLog.log("设备当前已解锁，跳过退回后台");
+                    return;
+                }
+                boolean moved = activity.moveTaskToBack(true);
+                XposedLog.log("支付宝前台 Activity 退回后台结果=" + moved
+                        + "，requestId=" + requestId);
+            } catch (Throwable throwable) {
+                XposedLog.logError("支付宝前台 Activity 退回后台失败", throwable);
+            }
+        }, FAST_SLEEP_BUFFER_MILLIS);
     }
 
     private static boolean isRecoveryIntent(Intent intent) {
@@ -364,8 +399,7 @@ final class AlipayForegroundHook {
     }
 
     private static void logError(String message, Throwable throwable) {
-        XposedBridge.log("SesameGuardian: " + message);
-        XposedBridge.log(throwable);
+        XposedLog.logError(message, throwable);
     }
 
 }

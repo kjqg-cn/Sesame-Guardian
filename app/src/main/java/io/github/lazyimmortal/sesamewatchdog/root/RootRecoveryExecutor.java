@@ -43,7 +43,7 @@ public final class RootRecoveryExecutor {
     }
 
     public static boolean execute(Context context, long requestId, int userId) {
-        return execute(context, requestId, userId, false);
+        return execute(context, requestId, userId, false, true);
     }
 
     public static boolean execute(
@@ -51,13 +51,22 @@ public final class RootRecoveryExecutor {
             long requestId,
             int userId,
             boolean wakeScreen) {
+        return execute(context, requestId, userId, wakeScreen, true);
+    }
+
+    public static boolean execute(
+            Context context,
+            long requestId,
+            int userId,
+            boolean wakeScreen,
+            boolean fastSleepEnabled) {
         if (context == null || requestId <= 0L || !isValidUserId(userId)) {
             return false;
         }
         Context appContext = context.getApplicationContext();
         Context safeContext = appContext == null ? context : appContext;
         try {
-            runRecovery(safeContext, requestId, userId, wakeScreen);
+            runRecovery(safeContext, requestId, userId, wakeScreen, fastSleepEnabled);
         } catch (Throwable throwable) {
             String message = "root 硬恢复执行器异常：" + throwable;
             appendDiagnostic(safeContext, message);
@@ -71,6 +80,15 @@ public final class RootRecoveryExecutor {
             long requestId,
             int userId,
             boolean wakeScreen) {
+        return bringAlipayToFront(context, requestId, userId, wakeScreen, true);
+    }
+
+    public static boolean bringAlipayToFront(
+            Context context,
+            long requestId,
+            int userId,
+            boolean wakeScreen,
+            boolean fastSleepEnabled) {
         if (context == null || requestId <= 0L || !isValidUserId(userId)) {
             return false;
         }
@@ -79,11 +97,22 @@ public final class RootRecoveryExecutor {
         RootCommandRunner.Result result = RootCommandRunner.bringAlipayToFront(
                 userId,
                 requestId,
-                wakeScreen);
+                wakeScreen,
+                fastSleepEnabled);
         String message = result.isSuccess()
                 ? "root 前台拉起命令执行成功"
                 : "root 前台拉起命令执行失败：" + result.getOutput();
         appendDiagnostic(safeContext, message);
+        return result.isSuccess();
+    }
+
+    public static boolean goToSleep(Context context) {
+        RootCommandRunner.Result result = RootCommandRunner.goToSleep();
+        if (context != null) {
+            appendDiagnostic(
+                    context,
+                    "Root 降级快速熄屏命令执行结果=" + (result.isSuccess() ? "成功" : "失败: " + result.getOutput()));
+        }
         return result.isSuccess();
     }
 
@@ -95,7 +124,8 @@ public final class RootRecoveryExecutor {
             Context context,
             long requestId,
             int userId,
-            boolean wakeScreen) {
+            boolean wakeScreen,
+            boolean fastSleepEnabled) {
         HardRecoveryThrottle.Result throttleResult = HardRecoveryAttemptStore.tryAcquire(
                 context, System.currentTimeMillis());
         if (throttleResult != HardRecoveryThrottle.Result.ALLOWED) {
@@ -109,7 +139,8 @@ public final class RootRecoveryExecutor {
         RootCommandRunner.Result result = RootCommandRunner.recoverAlipay(
                 userId,
                 wakeScreen,
-                requestId);
+                requestId,
+                fastSleepEnabled);
         String message = result.isSuccess()
                 ? "root 硬恢复命令执行成功，已强制停止支付宝并启动登录页"
                 : "root 硬恢复命令执行失败：" + result.getOutput();

@@ -43,6 +43,8 @@ final class SystemUiWatchdog {
             SystemUiWatchdog::checkRecoveryResult;
     private static final Runnable FOREGROUND_RECOVERY_TIMEOUT_RUNNABLE =
             SystemUiWatchdog::handleForegroundRecoveryTimeout;
+    private static final long FAST_SLEEP_DELAY_MILLIS = 3000L;
+    private static final Runnable FAST_SLEEP_RUNNABLE = SystemUiWatchdog::executeFastSleep;
 
     private static Handler workerHandler;
     private static Context systemUiContext;
@@ -58,6 +60,7 @@ final class SystemUiWatchdog {
     private static long activeForegroundRecoveryRequestId;
     private static long activeForegroundHardRecoveryRequestId;
     private static boolean foregroundHardRecoveryAttempted;
+    private static long fastSleepScheduledRequestId;
     private static PowerManager.WakeLock foregroundWakeLock;
     private static final RecoverySequence RECOVERY_SEQUENCE = new RecoverySequence();
 
@@ -236,6 +239,11 @@ final class SystemUiWatchdog {
                         + "，Activity=" + intent.getStringExtra(
                         WatchdogContract.EXTRA_ACTIVITY_CLASS)
                         + "，事件时间=" + elapsedRealtime(eventElapsedRealtime));
+        if (config != null && config.isFastSleepEnabled()) {
+            scheduleFastSleep(requestId);
+        } else {
+            releaseForegroundWakeLock();
+        }
     }
 
     private static void handleConfigUpdate(Intent intent) {
@@ -259,6 +267,11 @@ final class SystemUiWatchdog {
                 || newConfig.isInQuietHours(System.currentTimeMillis())) {
             cancelForegroundRecovery();
         }
+        if (!newConfig.isEnabled()
+                || !newConfig.isForegroundRecoveryEnabled()
+                || !newConfig.isFastSleepEnabled()) {
+            cancelFastSleep("配置已关闭快速熄屏");
+        }
         scheduleCheck();
         XposedLog.log(
                 "SystemUI 守护配置已更新，运行状态已保留："
@@ -269,6 +282,7 @@ final class SystemUiWatchdog {
     private static void handleScreenEvent(String action) {
         if (Intent.ACTION_USER_PRESENT.equals(action)) {
             SystemUiKeyguardBridge.setOccluded(false);
+            cancelFastSleep("用户已解锁屏幕");
         }
         if (config != null && config.isEnabled()) {
             evaluateAndLog(action);
@@ -422,6 +436,9 @@ final class SystemUiWatchdog {
                     requestId);
             request.putInt(WatchdogContract.EXTRA_TARGET_USER_ID, ALIPAY_USER_ID);
             request.putBoolean(WatchdogContract.EXTRA_WAKE_SCREEN, wakeScreen);
+            request.putBoolean(
+                    WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
+                    config != null && config.isFastSleepEnabled());
             Bundle result = systemUiContext.getContentResolver().call(
                     Uri.parse(WatchdogContract.COMMAND_PROVIDER_URI),
                     WatchdogContract.METHOD_BRING_ALIPAY_TO_FRONT,
@@ -468,6 +485,9 @@ final class SystemUiWatchdog {
                     requestId);
             request.putInt(WatchdogContract.EXTRA_TARGET_USER_ID, ALIPAY_USER_ID);
             request.putBoolean(WatchdogContract.EXTRA_WAKE_SCREEN, wakeScreen);
+            request.putBoolean(
+                    WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
+                    config != null && config.isFastSleepEnabled());
             Bundle result = systemUiContext.getContentResolver().call(
                     Uri.parse(WatchdogContract.COMMAND_PROVIDER_URI),
                     WatchdogContract.METHOD_REQUEST_HARD_RECOVERY,
@@ -505,6 +525,7 @@ final class SystemUiWatchdog {
         if (workerHandler != null) {
             workerHandler.removeCallbacks(FOREGROUND_RECOVERY_TIMEOUT_RUNNABLE);
         }
+        cancelFastSleep("前台拉起流程已取消");
         releaseForegroundWakeLock();
         SystemUiKeyguardBridge.setOccluded(false);
         lastForegroundRecoveryElapsedRealtime = 0L;
@@ -553,6 +574,7 @@ final class SystemUiWatchdog {
         return !wakeScreenFromSystemUi();
     }
 
+    @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi"})
     private static boolean wakeScreenFromSystemUi() {
         try {
             PowerManager powerManager = (PowerManager) systemUiContext
@@ -607,6 +629,116 @@ final class SystemUiWatchdog {
             XposedLog.logError("释放前台拉起屏幕唤醒锁失败", throwable);
         } finally {
             foregroundWakeLock = null;
+        }
+    }
+
+    private static void scheduleFastSleep(long requestId) {
+        if (workerHandler == null) {
+            releaseForegroundWakeLock();
+            return;
+        }
+        workerHandler.removeCallbacks(FAST_SLEEP_RUNNABLE);
+        fastSleepScheduledRequestId = requestId;
+        workerHandler.postDelayed(FAST_SLEEP_RUNNABLE, FAST_SLEEP_DELAY_MILLIS);
+        XposedLog.log(
+                "支付宝前台拉起就绪，将在 " + (FAST_SLEEP_DELAY_MILLIS / 1000)
+                        + " 秒后执行快速熄屏"
+                        + "，请求编号=" + requestId);
+    }
+
+    private static void cancelFastSleep(String reason) {
+        if (workerHandler != null) {
+            workerHandler.removeCallbacks(FAST_SLEEP_RUNNABLE);
+        }
+        if (fastSleepScheduledRequestId > 0L) {
+            fastSleepScheduledRequestId = 0L;
+            releaseForegroundWakeLock();
+            XposedLog.log("已取消快速熄屏：" + reason);
+        }
+    }
+
+    private static void executeFastSleep() {
+        try {
+            if (!isKeyguardLocked()) {
+                XposedLog.log("设备当前未处于锁屏状态，取消快速熄屏");
+                releaseForegroundWakeLock();
+                return;
+            }
+            releaseForegroundWakeLock();
+            boolean success = goToSleepFromSystemUi();
+            if (!success) {
+                XposedLog.log("SystemUI 接口主动熄屏失败，尝试触发 Root 降级快速熄屏");
+                success = goToSleepByRootFallback();
+            }
+            XposedLog.log("已执行锁屏快速主动熄屏，结果=" + WatchdogLogFormatter.yesNo(success));
+        } catch (Throwable throwable) {
+            XposedLog.logError("执行锁屏快速主动熄屏失败", throwable);
+            releaseForegroundWakeLock();
+        } finally {
+            fastSleepScheduledRequestId = 0L;
+        }
+    }
+
+    @SuppressLint({"BlockedPrivateApi", "DiscouragedPrivateApi"})
+    private static boolean goToSleepFromSystemUi() {
+        try {
+            PowerManager powerManager = (PowerManager) systemUiContext
+                    .getSystemService(Context.POWER_SERVICE);
+            if (powerManager == null) {
+                return false;
+            }
+            try {
+                Method goToSleep = PowerManager.class.getDeclaredMethod(
+                        "goToSleep",
+                        long.class,
+                        int.class,
+                        int.class);
+                goToSleep.setAccessible(true);
+                goToSleep.invoke(
+                        powerManager,
+                        SystemClock.uptimeMillis(),
+                        0,
+                        0);
+                return true;
+            } catch (NoSuchMethodException ignored) {
+                Method goToSleep = PowerManager.class.getDeclaredMethod(
+                        "goToSleep",
+                        long.class);
+                goToSleep.setAccessible(true);
+                goToSleep.invoke(powerManager, SystemClock.uptimeMillis());
+                return true;
+            }
+        } catch (Throwable throwable) {
+            XposedLog.logError("SystemUI 主动熄屏失败", throwable);
+            return false;
+        }
+    }
+
+    private static boolean goToSleepByRootFallback() {
+        try {
+            if (systemUiContext == null) {
+                return false;
+            }
+            Bundle request = new Bundle();
+            request.putInt(
+                    WatchdogContract.EXTRA_PROTOCOL_VERSION,
+                    WatchdogContract.PROTOCOL_VERSION);
+            request.putString(
+                    WatchdogContract.EXTRA_PROTOCOL_TOKEN,
+                    WatchdogContract.PROTOCOL_TOKEN);
+            request.putString(
+                    WatchdogContract.EXTRA_SOURCE_PACKAGE,
+                    WatchdogContract.SYSTEM_UI_PACKAGE);
+            Bundle result = systemUiContext.getContentResolver().call(
+                    Uri.parse(WatchdogContract.COMMAND_PROVIDER_URI),
+                    WatchdogContract.METHOD_REQUEST_GO_TO_SLEEP,
+                    null,
+                    request);
+            return result != null
+                    && result.getBoolean(WatchdogContract.EXTRA_COMMAND_ACCEPTED, false);
+        } catch (Throwable throwable) {
+            XposedLog.logError("调用 Root 降级快速熄屏异常", throwable);
+            return false;
         }
     }
 

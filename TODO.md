@@ -55,13 +55,17 @@
   - **涉及组件**：`WatchdogConfig.java`, `WatchdogConfigStore.java`, `WatchdogContract.java`, `SystemUiWatchdog.java`, `SystemUiWatchdogState.java`, `WatchdogLogFormatter.java`, `MainActivity.java`, `WatchdogConfigTest.java`, `SystemUiWatchdogStateTest.java`, `WatchdogLogFormatterTest.java`
   - **预期效果**：夜间免打扰时段内锁屏零唤醒、零亮屏、零主动恢复打扰，彻底杜绝夜间无效拉起与睡眠打扰。
 
-- [ ] **1.4 唤醒后快速主动熄屏与退回后台**
-  - **现状分析**：拉起支付宝后，持有 `SCREEN_BRIGHT_WAKE_LOCK` 达 30 秒，屏幕需等待系统锁屏超时才会熄灭。
-  - **实现方案**：
-    - 在支付宝侧确认收到 `onResume` 且窗口实际可见/获得焦点后，向守护服务回报就绪事件。
-    - 守护服务在确认拉起成功并维持短暂宽限（如 3~5 秒）后，主动释放 WakeLock，并可通过 root 调用 `input keyevent 26` 或系统熄屏接口及时灭屏。
-    - （可选）调用 `activity.moveTaskToBack(true)` 促使支付宝退回后台，降低前台 CPU 占用。
-  - **涉及组件**：`AlipayForegroundHook.java`, `SystemUiWatchdog.java`, `RootCommandRunner.java`
+- [x] **1.4 唤醒后快速主动熄屏与退回后台**
+  - **现状痛点**：拉起支付宝后，持有 `SCREEN_BRIGHT_WAKE_LOCK` 达 30 秒，屏幕需等待系统锁屏超时才会熄灭，且支付宝长期驻留前台顶层增加耗电与误触风险。
+  - **实现方案与落地成果**：
+    - **就绪闭环回调**：支付宝侧 `AlipayForegroundHook` 在生命周期恢复就绪后（适配安全锁屏下焦点缺失回退识别），主动向 SystemUI 发送恢复成功确认；
+    - **缓冲退回后台**：就绪后给予 3 秒安全缓冲（确保 Sesame-GR 调度器与任务已开始运行），在确认锁屏未解锁前提下，调用 `activity.moveTaskToBack(true)` 将支付宝安全退回后台任务栈，顶层切回 Launcher；
+    - **双通道快速熄屏（SystemUI 优先 + Root 幂等降级）**：SystemUI 守护服务收到恢复确认后启动 3 秒延时，对称释放 `SCREEN_BRIGHT_WAKE_LOCK` 并优先反射系统接口灭屏；若因 ROM 限制反射失败，自动无缝降级通过 Root 发送专用幂等灭屏指令 `input keyevent 223`（`KEYCODE_SLEEP`），已熄屏时绝不反向唤醒；
+    - **全链路参数透传与硬恢复一致性**：在“前台保活”面板新增“唤醒后快速熄屏”开关项（默认开启），不仅支持普通锁屏前台拉起，亦全链路透传至 Root 硬恢复（`am force-stop + start`）通道，彻底消除开关状态漂移；
+    - **防误熄安全防护**：用户在亮屏期间解锁屏幕（`ACTION_USER_PRESENT`）时，立即取消待执行的快速熄屏与退后台逻辑，避免干扰用户正常使用；
+    - **模块私有日志闭环**：支付宝探针初始化私有日志通道，将 Activity 退后台结果与生命周期就绪状态直接写入 `watchdog.log`，前端日志界面可直接查阅。
+  - **涉及组件**：`AlipayForegroundHook.java`, `AlipayProbe.java`, `SystemUiWatchdog.java`, `WatchdogConfig.java`, `WatchdogConfigStore.java`, `WatchdogContract.java`, `WatchdogCommandProvider.java`, `RootCommandRunner.java`, `RootRecoveryExecutor.java`, `MainActivity.java`, `WatchdogConfigTest.java`, `RootCommandRunnerTest.java`
+  - **预期效果**：锁屏拉起后亮屏停留大幅缩短至 3 秒，支付宝自动退回后台并主动快速灭屏，彻底杜绝长时间无效亮屏与前台误触。
 
 - [ ] **1.5 距离传感器避让（防兜里/面朝下亮屏）**
   - **实现方案**：在 SystemUI 触发屏幕唤醒前，读取系统距离传感器（`Sensor.TYPE_PROXIMITY`）。若处于遮挡状态（手机装在口袋或正面朝下静置），则暂缓亮屏拉起，待传感器恢复正常后再触发。
@@ -122,8 +126,11 @@
 
 ---
 
-## 迭代建议与版本排期
+## 版本交付与迭代排期
 
-- **v0.2.0**：重点交付 **第一期 1.1（模块激活与作用域准入检测）**、**1.2（按需唤醒）** 与 **1.3（免打扰时段）**，保障前置门禁并解决锁屏功耗体验。
-- **v0.3.0**：交付 **第二期 2.1（首页 Dashboard 状态卡片）** 与 **第一期 1.4（主动熄屏）**。
-- **v0.4.0+**：视社区与真机反馈，推进 **Root Shell 复用** 与 **多模块 Profile**。
+- **v0.1.0**：项目初始发布，搭建独立 LSPosed 框架、SystemUI 进程外守护服务、支付宝主 Looper 心跳与 Root 恢复链路。
+- **v0.1.1**：优化关于页与日志页，补全文档与项目规范。
+- **v0.1.2**：交付 **第一期 1.1（模块激活与作用域准入检测）**、**1.2（智能按需唤醒）**、**1.3（夜间免打扰）** 与 **1.6（界面布局与二级页统一）**。
+- **v0.1.3（当前）**：交付 **第一期 1.4（唤醒后快速熄屏与退回后台）**，实现锁屏 3 秒退后台、双通道主动熄屏（SystemUI 反射 + Root 幂等降级）与全链路参数透传。
+- **v0.2.0**：规划交付 **第一期 1.5（距离传感器避让）** 与 **第二期 2.1（首页 Dashboard 状态卡片）**。
+- **v0.3.0+**：视社区与真机反馈，推进 **2.2（一键即时诊断）**、**3.1（Root Shell 复用）** 与 **3.2（多模块 Profile）**。

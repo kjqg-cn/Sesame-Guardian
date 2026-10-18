@@ -34,6 +34,15 @@ public final class WatchdogConfigTest {
         assertEquals(0, config.getQuietHoursStartMinute());
         assertEquals(6, config.getQuietHoursEndHour());
         assertEquals(30, config.getQuietHoursEndMinute());
+        assertTrue(config.isFastSleepEnabled());
+    }
+
+    @Test
+    public void preservesFastSleepConfiguration() {
+        WatchdogConfig config = WatchdogConfig.create(
+                true, 15, 10, 10, 45, 60, false, false, true, 5,
+                false, 1, 0, 6, 30, false);
+        assertFalse(config.isFastSleepEnabled());
     }
 
     @Test

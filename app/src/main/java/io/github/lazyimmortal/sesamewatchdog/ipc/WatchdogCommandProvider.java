@@ -33,6 +33,9 @@ public final class WatchdogCommandProvider extends ContentProvider {
             if (WatchdogContract.METHOD_BRING_ALIPAY_TO_FRONT.equals(method)) {
                 return bringAlipayToFront(extras);
             }
+            if (WatchdogContract.METHOD_REQUEST_GO_TO_SLEEP.equals(method)) {
+                return requestGoToSleep(extras);
+            }
             return result(false, "未知命令");
         } catch (Throwable throwable) {
             return result(false, "命令执行异常：" + throwable);
@@ -64,15 +67,31 @@ public final class WatchdogCommandProvider extends ContentProvider {
                 WatchdogContract.EXTRA_HARD_RECOVERY_REQUEST_ID, 0L);
         int userId = extras.getInt(WatchdogContract.EXTRA_TARGET_USER_ID, -1);
         boolean wakeScreen = extras.getBoolean(WatchdogContract.EXTRA_WAKE_SCREEN, false);
+        boolean fastSleepEnabled = extras.getBoolean(
+                WatchdogContract.EXTRA_FAST_SLEEP_ENABLED, true);
         if (requestId <= 0L || !RootRecoveryExecutor.isValidUserId(userId)
                 || getContext() == null) {
             return result(false, "恢复请求参数无效");
         }
         boolean accepted = RootRecoveryExecutor.execute(
-                getContext(), requestId, userId, wakeScreen);
+                getContext(), requestId, userId, wakeScreen, fastSleepEnabled);
         return result(
                 accepted,
                 accepted ? "恢复请求已提交" : "恢复请求提交失败");
+    }
+
+    private Bundle requestGoToSleep(Bundle extras) {
+        if (!WatchdogContract.SYSTEM_UI_PACKAGE.equals(
+                extras.getString(WatchdogContract.EXTRA_SOURCE_PACKAGE))) {
+            return result(false, "熄屏请求来源无效");
+        }
+        if (getContext() == null) {
+            return result(false, "Context 无效");
+        }
+        boolean accepted = RootRecoveryExecutor.goToSleep(getContext());
+        return result(
+                accepted,
+                accepted ? "Root 降级熄屏已执行" : "Root 降级熄屏执行失败");
     }
 
     private Bundle bringAlipayToFront(Bundle extras) {
@@ -84,6 +103,8 @@ public final class WatchdogCommandProvider extends ContentProvider {
                 WatchdogContract.EXTRA_FOREGROUND_RECOVERY_REQUEST_ID, 0L);
         int userId = extras.getInt(WatchdogContract.EXTRA_TARGET_USER_ID, -1);
         boolean wakeScreen = extras.getBoolean(WatchdogContract.EXTRA_WAKE_SCREEN, false);
+        boolean fastSleepEnabled = extras.getBoolean(
+                WatchdogContract.EXTRA_FAST_SLEEP_ENABLED, true);
         if (requestId <= 0L || !RootRecoveryExecutor.isValidUserId(userId)
                 || getContext() == null) {
             return result(false, "前台拉起请求参数无效");
@@ -92,7 +113,8 @@ public final class WatchdogCommandProvider extends ContentProvider {
                 getContext(),
                 requestId,
                 userId,
-                wakeScreen);
+                wakeScreen,
+                fastSleepEnabled);
         return result(
                 accepted,
                 accepted ? "前台拉起命令执行成功" : "前台拉起命令执行失败");

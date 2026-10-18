@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
     private EditText executionStallInput;
     private Switch foregroundRecoverySwitch;
     private EditText foregroundRecoveryIntervalInput;
+    private Switch fastSleepSwitch;
     private Switch quietHoursSwitch;
     private Button quietHoursStartTimeButton;
     private Button quietHoursEndTimeButton;
@@ -175,6 +176,16 @@ public final class MainActivity extends Activity {
                 "保底拉起间隔",
                 config.getForegroundRecoveryIntervalMinutes(),
                 "优先在 Sesame-GR 计划时间前按需唤醒；当计划时间缺失、计划逾期或心跳异常时，按此间隔保底拉起。");
+
+        foregroundPanel.addView(createDivider());
+
+        fastSleepSwitch = new Switch(this);
+        fastSleepSwitch.setChecked(config.isFastSleepEnabled());
+        foregroundPanel.addView(createSwitchRow(
+                "唤醒后快速熄屏",
+                "确认拉起就绪后主动熄灭屏幕并退回后台，减少亮屏耗电",
+                fastSleepSwitch), matchWidth());
+
         addPanel(scrollableContent, foregroundPanel);
 
         LinearLayout quietHoursPanel = createPanel();
@@ -267,6 +278,7 @@ public final class MainActivity extends Activity {
             enabledSwitch.setEnabled(false);
             foregroundRecoverySwitch.setEnabled(false);
             foregroundRecoveryIntervalInput.setEnabled(false);
+            fastSleepSwitch.setEnabled(false);
             quietHoursSwitch.setEnabled(false);
             startupGraceInput.setEnabled(false);
             heartbeatTimeoutInput.setEnabled(false);
@@ -566,7 +578,8 @@ public final class MainActivity extends Activity {
                 quietHoursStartHour,
                 quietHoursStartMinute,
                 quietHoursEndHour,
-                quietHoursEndMinute);
+                quietHoursEndMinute,
+                fastSleepSwitch.isChecked());
 
         WatchdogConfigStore.save(this, config);
         updateInputs(config);
@@ -615,6 +628,7 @@ public final class MainActivity extends Activity {
         foregroundRecoverySwitch.setChecked(config.isForegroundRecoveryEnabled());
         foregroundRecoveryIntervalInput.setText(
                 String.valueOf(config.getForegroundRecoveryIntervalMinutes()));
+        fastSleepSwitch.setChecked(config.isFastSleepEnabled());
         quietHoursSwitch.setChecked(config.isQuietHoursEnabled());
         quietHoursStartHour = config.getQuietHoursStartHour();
         quietHoursStartMinute = config.getQuietHoursStartMinute();
