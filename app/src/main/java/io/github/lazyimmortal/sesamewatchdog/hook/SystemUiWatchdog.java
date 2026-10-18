@@ -7,6 +7,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -18,6 +22,7 @@ import android.os.SystemClock;
 import android.view.Display;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -35,6 +40,7 @@ final class SystemUiWatchdog {
     private static final long RECOVERY_OBSERVATION_MILLIS = 90_000L;
     private static final long HARD_RECOVERY_OBSERVATION_MILLIS = 15 * 60_000L;
     private static final long FOREGROUND_RECOVERY_TIMEOUT_MILLIS = 30_000L;
+    private static final long PROXIMITY_CHECK_TIMEOUT_MILLIS = 400L;
     private static final int ALIPAY_USER_ID = 0;
     private static final AtomicBoolean HOOK_INSTALLED = new AtomicBoolean(false);
     private static final AtomicBoolean STARTED = new AtomicBoolean(false);
@@ -62,6 +68,9 @@ final class SystemUiWatchdog {
     private static boolean foregroundHardRecoveryAttempted;
     private static long fastSleepScheduledRequestId;
     private static PowerManager.WakeLock foregroundWakeLock;
+    private static boolean proximityChecking;
+    private static SensorEventListener activeProximityListener;
+    private static Runnable activeProximityTimeoutRunnable;
     private static final RecoverySequence RECOVERY_SEQUENCE = new RecoverySequence();
 
     private SystemUiWatchdog() {
@@ -134,6 +143,7 @@ final class SystemUiWatchdog {
             activeForegroundRecoveryRequestId = 0L;
             activeForegroundHardRecoveryRequestId = 0L;
             foregroundHardRecoveryAttempted = false;
+            cancelProximityCheck();
             RECOVERY_SEQUENCE.reset();
             scheduleCheck();
         } catch (Throwable throwable) {
@@ -272,6 +282,11 @@ final class SystemUiWatchdog {
                 || !newConfig.isFastSleepEnabled()) {
             cancelFastSleep("配置已关闭快速熄屏");
         }
+        if (!newConfig.isEnabled()
+                || !newConfig.isForegroundRecoveryEnabled()
+                || !newConfig.isProximityAvoidanceEnabled()) {
+            cancelProximityCheck();
+        }
         scheduleCheck();
         XposedLog.log(
                 "SystemUI 守护配置已更新，运行状态已保留："
@@ -283,6 +298,7 @@ final class SystemUiWatchdog {
         if (Intent.ACTION_USER_PRESENT.equals(action)) {
             SystemUiKeyguardBridge.setOccluded(false);
             cancelFastSleep("用户已解锁屏幕");
+            cancelProximityCheck();
         }
         if (config != null && config.isEnabled()) {
             evaluateAndLog(action);
@@ -320,7 +336,8 @@ final class SystemUiWatchdog {
                 || !config.isEnabled()
                 || !config.isForegroundRecoveryEnabled()
                 || activeForegroundRecoveryRequestId != 0L
-                || activeForegroundHardRecoveryRequestId != 0L) {
+                || activeForegroundHardRecoveryRequestId != 0L
+                || proximityChecking) {
             return;
         }
         if (!isKeyguardLocked()) {
@@ -336,11 +353,42 @@ final class SystemUiWatchdog {
             return;
         }
 
-        long requestId = Math.max(1L, nowElapsedRealtime);
+        if (config.isProximityAvoidanceEnabled()) {
+            checkProximityCovered(isCovered -> {
+                if (!isKeyguardLocked()) {
+                    SystemUiKeyguardBridge.setOccluded(false);
+                    return;
+                }
+                if (config == null
+                        || !config.isEnabled()
+                        || !config.isForegroundRecoveryEnabled()
+                        || activeForegroundRecoveryRequestId != 0L
+                        || activeForegroundHardRecoveryRequestId != 0L) {
+                    return;
+                }
+                if (isCovered) {
+                    lastForegroundRecoveryElapsedRealtime = SystemClock.elapsedRealtime();
+                    XposedLog.log("跳过锁屏前台拉起：检测到距离传感器被遮挡（手机在兜内或倒扣）");
+                    return;
+                }
+                executeForegroundRecovery(
+                        trigger,
+                        Math.max(1L, SystemClock.elapsedRealtime()));
+            });
+        } else {
+            executeForegroundRecovery(
+                    trigger,
+                    Math.max(1L, nowElapsedRealtime));
+        }
+    }
+
+    private static void executeForegroundRecovery(
+            SystemUiWatchdogState.ForegroundRecoveryTrigger trigger,
+            long requestId) {
         activeForegroundRecoveryRequestId = requestId;
         foregroundHardRecoveryAttempted = false;
         // 尝试时间立即记录：建立 60 秒冷却防抖，避免重试风暴
-        lastForegroundRecoveryElapsedRealtime = nowElapsedRealtime;
+        lastForegroundRecoveryElapsedRealtime = SystemClock.elapsedRealtime();
 
         SystemUiKeyguardBridge.setOccluded(true);
         boolean wakeScreen = prepareScreenForRecovery();
@@ -357,7 +405,9 @@ final class SystemUiWatchdog {
             XposedLog.log(
                     "触发智能按需锁屏拉起（即将到达计划执行时间），目标="
                             + WatchdogLogFormatter.elapsedRealtime(
-                            state.getLastScheduledTriggerTarget(), nowElapsedRealtime, System.currentTimeMillis())
+                            state.getLastScheduledTriggerTarget(),
+                            lastForegroundRecoveryElapsedRealtime,
+                            System.currentTimeMillis())
                             + "，请求编号=" + requestId);
         } else {
             XposedLog.log(
@@ -526,6 +576,7 @@ final class SystemUiWatchdog {
             workerHandler.removeCallbacks(FOREGROUND_RECOVERY_TIMEOUT_RUNNABLE);
         }
         cancelFastSleep("前台拉起流程已取消");
+        cancelProximityCheck();
         releaseForegroundWakeLock();
         SystemUiKeyguardBridge.setOccluded(false);
         lastForegroundRecoveryElapsedRealtime = 0L;
@@ -535,6 +586,201 @@ final class SystemUiWatchdog {
         if (state != null) {
             state.resetScheduledTriggerTarget();
         }
+    }
+
+    private static void cancelProximityCheck() {
+        proximityChecking = false;
+        if (workerHandler != null && activeProximityTimeoutRunnable != null) {
+            workerHandler.removeCallbacks(activeProximityTimeoutRunnable);
+            activeProximityTimeoutRunnable = null;
+        }
+        if (activeProximityListener != null && systemUiContext != null) {
+            try {
+                SensorManager sensorManager = (SensorManager) systemUiContext
+                        .getSystemService(Context.SENSOR_SERVICE);
+                if (sensorManager != null) {
+                    sensorManager.unregisterListener(activeProximityListener);
+                }
+            } catch (Throwable ignored) {
+            }
+            activeProximityListener = null;
+        }
+    }
+
+    private static void checkProximityCovered(Consumer<Boolean> callback) {
+        if (config == null || !config.isProximityAvoidanceEnabled()) {
+            callback.accept(false);
+            return;
+        }
+        cancelProximityCheck();
+
+        SensorManager sensorManager = null;
+        try {
+            sensorManager = (SensorManager) systemUiContext
+                    .getSystemService(Context.SENSOR_SERVICE);
+        } catch (Throwable throwable) {
+            XposedLog.logError("获取 SensorManager 失败", throwable);
+        }
+        if (sensorManager == null) {
+            callback.accept(false);
+            return;
+        }
+
+        Sensor proximitySensor = null;
+        try {
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+        } catch (Throwable ignored) {
+        }
+        Sensor lightSensor = null;
+        try {
+            lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        } catch (Throwable ignored) {
+        }
+        Sensor motionSensor = null;
+        try {
+            motionSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+            if (motionSensor == null) {
+                motionSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            }
+        } catch (Throwable ignored) {
+        }
+
+        if (proximitySensor == null && lightSensor == null && motionSensor == null) {
+            callback.accept(false);
+            return;
+        }
+
+        final Sensor finalProximitySensor = proximitySensor;
+        proximityChecking = true;
+
+        final float[] proximityDist = new float[]{-1.0f};
+        final float[] lightLux = new float[]{-1.0f};
+        final float[] motionVals = new float[3];
+        final boolean[] hasMotion = new boolean[]{false};
+        final boolean[] finished = new boolean[]{false};
+
+        final SensorEventListener listener = new SensorEventListener() {
+            private void finishCheck(boolean isCovered, String reason) {
+                if (finished[0]) {
+                    return;
+                }
+                finished[0] = true;
+                cancelProximityCheck();
+                if (isCovered && reason != null) {
+                    XposedLog.log("避让检测判定为被遮挡：" + reason);
+                }
+                callback.accept(isCovered);
+            }
+
+            @Override
+            public void onSensorChanged(SensorEvent event) {
+                if (activeProximityListener != this || finished[0] || event == null || event.values == null) {
+                    return;
+                }
+                int type = event.sensor.getType();
+                if (type == Sensor.TYPE_PROXIMITY && event.values.length > 0) {
+                    float distance = event.values[0];
+                    proximityDist[0] = distance;
+                    float maxRange = finalProximitySensor != null
+                            ? finalProximitySensor.getMaximumRange()
+                            : 5.0f;
+                    if (distance >= 0.0f && distance < 5.0f && (maxRange <= 0.0f || distance < maxRange)) {
+                        finishCheck(true, "距离传感器检测到近距离物体（distance=" + distance + "）");
+                        return;
+                    }
+                } else if (type == Sensor.TYPE_LIGHT && event.values.length > 0) {
+                    lightLux[0] = event.values[0];
+                } else if ((type == Sensor.TYPE_GRAVITY || type == Sensor.TYPE_ACCELEROMETER)
+                        && event.values.length >= 3) {
+                    motionVals[0] = event.values[0];
+                    motionVals[1] = event.values[1];
+                    motionVals[2] = event.values[2];
+                    hasMotion[0] = true;
+                }
+
+                if (lightLux[0] >= 0.0f && hasMotion[0]) {
+                    boolean isDark = lightLux[0] <= 1.0f;
+                    boolean isFaceDown = motionVals[2] < -6.0f;
+                    boolean isHeadDown = motionVals[1] < -5.0f;
+                    if (isDark && isFaceDown) {
+                        finishCheck(true, "手机正面朝下倒扣在桌面或贴物（光照=" + lightLux[0] + "，Z轴=" + motionVals[2] + "）");
+                        return;
+                    }
+                    if (isDark && isHeadDown) {
+                        finishCheck(true, "手机装在裤兜或背包中（光照=" + lightLux[0] + "，Y轴=" + motionVals[1] + "）");
+                        return;
+                    }
+                    boolean proxReady = (finalProximitySensor == null || proximityDist[0] >= 0.0f);
+                    if (proxReady) {
+                        finishCheck(false, null);
+                        return;
+                    }
+                }
+            }
+
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            }
+        };
+
+        Runnable timeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (activeProximityTimeoutRunnable != this || finished[0]) {
+                    return;
+                }
+                finished[0] = true;
+                cancelProximityCheck();
+                if (lightLux[0] >= 0.0f && hasMotion[0]) {
+                    boolean isDark = lightLux[0] <= 1.0f;
+                    boolean isFaceDown = motionVals[2] < -6.0f;
+                    boolean isHeadDown = motionVals[1] < -5.0f;
+                    if (isDark && (isFaceDown || isHeadDown)) {
+                        String detail = isFaceDown
+                                ? "手机正面朝下倒扣在桌面或贴物（光照=" + lightLux[0] + "，Z轴=" + motionVals[2] + "）"
+                                : "手机装在裤兜或背包中（光照=" + lightLux[0] + "，Y轴=" + motionVals[1] + "）";
+                        XposedLog.log("避让检测判定为被遮挡：" + detail);
+                        callback.accept(true);
+                        return;
+                    }
+                }
+                XposedLog.log("距离传感器采样超时（400ms），放行本次唤醒");
+                callback.accept(false);
+            }
+        };
+
+        activeProximityListener = listener;
+        activeProximityTimeoutRunnable = timeoutRunnable;
+
+        boolean anyRegistered = false;
+        try {
+            if (proximitySensor != null) {
+                anyRegistered |= sensorManager.registerListener(
+                        listener, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL, workerHandler);
+            }
+            if (lightSensor != null) {
+                anyRegistered |= sensorManager.registerListener(
+                        listener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL, workerHandler);
+            }
+            if (motionSensor != null) {
+                anyRegistered |= sensorManager.registerListener(
+                        listener, motionSensor, SensorManager.SENSOR_DELAY_NORMAL, workerHandler);
+            }
+        } catch (Throwable throwable) {
+            XposedLog.logError("注册避让传感器监听失败", throwable);
+        }
+
+        if (!anyRegistered) {
+            cancelProximityCheck();
+            callback.accept(false);
+            return;
+        }
+
+        if (!proximityChecking) {
+            return;
+        }
+
+        workerHandler.postDelayed(timeoutRunnable, PROXIMITY_CHECK_TIMEOUT_MILLIS);
     }
 
     private static boolean isKeyguardLocked() {

@@ -35,6 +35,7 @@ public final class WatchdogConfigTest {
         assertEquals(6, config.getQuietHoursEndHour());
         assertEquals(30, config.getQuietHoursEndMinute());
         assertTrue(config.isFastSleepEnabled());
+        assertTrue(config.isProximityAvoidanceEnabled());
     }
 
     @Test
@@ -43,6 +44,14 @@ public final class WatchdogConfigTest {
                 true, 15, 10, 10, 45, 60, false, false, true, 5,
                 false, 1, 0, 6, 30, false);
         assertFalse(config.isFastSleepEnabled());
+    }
+
+    @Test
+    public void preservesProximityAvoidanceConfiguration() {
+        WatchdogConfig config = WatchdogConfig.create(
+                true, 15, 10, 10, 45, 60, false, false, true, 5,
+                false, 1, 0, 6, 30, true, false);
+        assertFalse(config.isProximityAvoidanceEnabled());
     }
 
     @Test

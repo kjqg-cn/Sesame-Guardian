@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private Switch foregroundRecoverySwitch;
     private EditText foregroundRecoveryIntervalInput;
     private Switch fastSleepSwitch;
+    private Switch proximityAvoidanceSwitch;
     private Switch quietHoursSwitch;
     private Button quietHoursStartTimeButton;
     private Button quietHoursEndTimeButton;
@@ -186,6 +187,15 @@ public final class MainActivity extends Activity {
                 "确认拉起就绪后主动熄灭屏幕并退回后台，减少亮屏耗电",
                 fastSleepSwitch), matchWidth());
 
+        foregroundPanel.addView(createDivider());
+
+        proximityAvoidanceSwitch = new Switch(this);
+        proximityAvoidanceSwitch.setChecked(config.isProximityAvoidanceEnabled());
+        foregroundPanel.addView(createSwitchRow(
+                "距离传感器避让",
+                "在裤兜或正面朝下时放弃点亮屏幕，出兜翻面后恢复",
+                proximityAvoidanceSwitch), matchWidth());
+
         addPanel(scrollableContent, foregroundPanel);
 
         LinearLayout quietHoursPanel = createPanel();
@@ -279,6 +289,7 @@ public final class MainActivity extends Activity {
             foregroundRecoverySwitch.setEnabled(false);
             foregroundRecoveryIntervalInput.setEnabled(false);
             fastSleepSwitch.setEnabled(false);
+            proximityAvoidanceSwitch.setEnabled(false);
             quietHoursSwitch.setEnabled(false);
             startupGraceInput.setEnabled(false);
             heartbeatTimeoutInput.setEnabled(false);
@@ -579,7 +590,8 @@ public final class MainActivity extends Activity {
                 quietHoursStartMinute,
                 quietHoursEndHour,
                 quietHoursEndMinute,
-                fastSleepSwitch.isChecked());
+                fastSleepSwitch.isChecked(),
+                proximityAvoidanceSwitch.isChecked());
 
         WatchdogConfigStore.save(this, config);
         updateInputs(config);
@@ -629,6 +641,7 @@ public final class MainActivity extends Activity {
         foregroundRecoveryIntervalInput.setText(
                 String.valueOf(config.getForegroundRecoveryIntervalMinutes()));
         fastSleepSwitch.setChecked(config.isFastSleepEnabled());
+        proximityAvoidanceSwitch.setChecked(config.isProximityAvoidanceEnabled());
         quietHoursSwitch.setChecked(config.isQuietHoursEnabled());
         quietHoursStartHour = config.getQuietHoursStartHour();
         quietHoursStartMinute = config.getQuietHoursStartMinute();

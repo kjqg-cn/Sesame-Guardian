@@ -70,6 +70,8 @@ public final class WatchdogContract {
     public static final String EXTRA_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
     public static final String EXTRA_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
     public static final String EXTRA_FAST_SLEEP_ENABLED = "fastSleepEnabled";
+    public static final String EXTRA_PROXIMITY_AVOIDANCE_ENABLED =
+            "proximityAvoidanceEnabled";
     public static final String EXTRA_HARD_RECOVERY_REQUEST_ID = "hardRecoveryRequestId";
     public static final String EXTRA_TARGET_USER_ID = "targetUserId";
     public static final String EXTRA_HARD_RECOVERY_SUCCESS = "hardRecoverySuccess";

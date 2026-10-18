@@ -29,6 +29,8 @@ final class WatchdogLogFormatter {
                 + "，锁屏前台拉起=" + yesNo(config.isForegroundRecoveryEnabled())
                 + "，前台拉起间隔=" + config.getForegroundRecoveryIntervalMinutes()
                 + "分钟"
+                + "，快速熄屏=" + yesNo(config.isFastSleepEnabled())
+                + "，距离传感器避让=" + yesNo(config.isProximityAvoidanceEnabled())
                 + quietHoursSummary;
     }
 

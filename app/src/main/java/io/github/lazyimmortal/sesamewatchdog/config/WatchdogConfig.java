@@ -19,6 +19,7 @@ public final class WatchdogConfig {
     public static final int DEFAULT_QUIET_HOURS_END_HOUR = 6;
     public static final int DEFAULT_QUIET_HOURS_END_MINUTE = 30;
     public static final boolean DEFAULT_FAST_SLEEP_ENABLED = true;
+    public static final boolean DEFAULT_PROXIMITY_AVOIDANCE_ENABLED = true;
 
     private static final int MIN_THRESHOLD_MINUTES = 1;
     private static final int MAX_THRESHOLD_MINUTES = 24 * 60;
@@ -39,6 +40,7 @@ public final class WatchdogConfig {
     private final int quietHoursEndHour;
     private final int quietHoursEndMinute;
     private final boolean fastSleepEnabled;
+    private final boolean proximityAvoidanceEnabled;
 
     private WatchdogConfig(
             boolean enabled,
@@ -56,7 +58,8 @@ public final class WatchdogConfig {
             int quietHoursStartMinute,
             int quietHoursEndHour,
             int quietHoursEndMinute,
-            boolean fastSleepEnabled) {
+            boolean fastSleepEnabled,
+            boolean proximityAvoidanceEnabled) {
         this.enabled = enabled;
         this.startupGraceMinutes = clampMinutes(startupGraceMinutes);
         this.heartbeatTimeoutMinutes = clampMinutes(heartbeatTimeoutMinutes);
@@ -74,6 +77,7 @@ public final class WatchdogConfig {
         this.quietHoursEndHour = clampHour(quietHoursEndHour);
         this.quietHoursEndMinute = clampMinute(quietHoursEndMinute);
         this.fastSleepEnabled = fastSleepEnabled;
+        this.proximityAvoidanceEnabled = proximityAvoidanceEnabled;
     }
 
     public static WatchdogConfig defaults() {
@@ -249,6 +253,44 @@ public final class WatchdogConfig {
             int quietHoursEndHour,
             int quietHoursEndMinute,
             boolean fastSleepEnabled) {
+        return create(
+                enabled,
+                startupGraceMinutes,
+                heartbeatTimeoutMinutes,
+                nextOverdueMinutes,
+                runningTimeoutMinutes,
+                executionStallMinutes,
+                autoSoftRecovery,
+                hardRecoveryEnabled,
+                foregroundRecoveryEnabled,
+                foregroundRecoveryIntervalMinutes,
+                quietHoursEnabled,
+                quietHoursStartHour,
+                quietHoursStartMinute,
+                quietHoursEndHour,
+                quietHoursEndMinute,
+                fastSleepEnabled,
+                DEFAULT_PROXIMITY_AVOIDANCE_ENABLED);
+    }
+
+    public static WatchdogConfig create(
+            boolean enabled,
+            int startupGraceMinutes,
+            int heartbeatTimeoutMinutes,
+            int nextOverdueMinutes,
+            int runningTimeoutMinutes,
+            int executionStallMinutes,
+            boolean autoSoftRecovery,
+            boolean hardRecoveryEnabled,
+            boolean foregroundRecoveryEnabled,
+            int foregroundRecoveryIntervalMinutes,
+            boolean quietHoursEnabled,
+            int quietHoursStartHour,
+            int quietHoursStartMinute,
+            int quietHoursEndHour,
+            int quietHoursEndMinute,
+            boolean fastSleepEnabled,
+            boolean proximityAvoidanceEnabled) {
         return new WatchdogConfig(
                 enabled,
                 startupGraceMinutes,
@@ -265,7 +307,8 @@ public final class WatchdogConfig {
                 quietHoursStartMinute,
                 quietHoursEndHour,
                 quietHoursEndMinute,
-                fastSleepEnabled);
+                fastSleepEnabled,
+                proximityAvoidanceEnabled);
     }
 
     public boolean isEnabled() {
@@ -274,6 +317,10 @@ public final class WatchdogConfig {
 
     public boolean isFastSleepEnabled() {
         return fastSleepEnabled;
+    }
+
+    public boolean isProximityAvoidanceEnabled() {
+        return proximityAvoidanceEnabled;
     }
 
     public int getStartupGraceMinutes() {
@@ -389,9 +436,10 @@ public final class WatchdogConfig {
                 + ", foregroundRecoveryIntervalMinutes="
                 + foregroundRecoveryIntervalMinutes
                 + ", quietHoursEnabled=" + quietHoursEnabled
-                + ", quietHours=" + String.format("%02d:%02d-%02d:%02d",
+                + ", quietHours=" + String.format(java.util.Locale.getDefault(), "%02d:%02d-%02d:%02d",
                 quietHoursStartHour, quietHoursStartMinute, quietHoursEndHour, quietHoursEndMinute)
-                + ", fastSleepEnabled=" + fastSleepEnabled;
+                + ", fastSleepEnabled=" + fastSleepEnabled
+                + ", proximityAvoidanceEnabled=" + proximityAvoidanceEnabled;
     }
 
     private static int clampMinutes(int value) {

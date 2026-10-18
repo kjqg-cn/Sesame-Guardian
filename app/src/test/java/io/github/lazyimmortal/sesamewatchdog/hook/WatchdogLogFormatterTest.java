@@ -66,12 +66,16 @@ public final class WatchdogLogFormatterTest {
         WatchdogConfig defaultDisabled = WatchdogConfig.defaults();
         String defaultSummary = WatchdogLogFormatter.config(defaultDisabled);
         assertTrue(defaultSummary.contains("，夜间免打扰=否"));
+        assertTrue(defaultSummary.contains("，快速熄屏=是"));
+        assertTrue(defaultSummary.contains("，距离传感器避让=是"));
 
         WatchdogConfig enabled = WatchdogConfig.create(
                 true, 15, 10, 10, 45, 60, false, false, true, 5,
-                true, 1, 0, 6, 30);
+                true, 1, 0, 6, 30, false, false);
         String enabledSummary = WatchdogLogFormatter.config(enabled);
         assertTrue(enabledSummary.contains("，夜间免打扰=是（01:00-06:30）"));
+        assertTrue(enabledSummary.contains("，快速熄屏=否"));
+        assertTrue(enabledSummary.contains("，距离传感器避让=否"));
     }
 
     private static long at(int year, int month, int day, int hour, int minute, int second) {

@@ -67,9 +67,15 @@
   - **涉及组件**：`AlipayForegroundHook.java`, `AlipayProbe.java`, `SystemUiWatchdog.java`, `WatchdogConfig.java`, `WatchdogConfigStore.java`, `WatchdogContract.java`, `WatchdogCommandProvider.java`, `RootCommandRunner.java`, `RootRecoveryExecutor.java`, `MainActivity.java`, `WatchdogConfigTest.java`, `RootCommandRunnerTest.java`
   - **预期效果**：锁屏拉起后亮屏停留大幅缩短至 3 秒，支付宝自动退回后台并主动快速灭屏，彻底杜绝长时间无效亮屏与前台误触。
 
-- [ ] **1.5 距离传感器避让（防兜里/面朝下亮屏）**
-  - **实现方案**：在 SystemUI 触发屏幕唤醒前，读取系统距离传感器（`Sensor.TYPE_PROXIMITY`）。若处于遮挡状态（手机装在口袋或正面朝下静置），则暂缓亮屏拉起，待传感器恢复正常后再触发。
-  - **涉及组件**：`SystemUiWatchdog.java`
+- [x] **1.5 距离传感器避让（防兜里/面朝下亮屏）**
+  - **现状痛点**：当手机装在裤兜、背包或正面扣在桌面上时，锁屏前台拉起盲目点亮屏幕，不仅在封闭空间内造成无效发热和待机掉电，还极易引发屏幕误触甚至意外报警。
+  - **实现方案与落地成果**：
+    - **按需单次极速采样（Zero Idle Power）**：坚决不采用后台常驻监听（避免传感器硬件持续供电耗电），仅在即将唤醒屏幕前向 `SensorManager` 注册单次异步监听，限制 400ms 超时窗口获取读数后即刻注销；
+    - **物理测距与多传感器姿态融合判定**：物理红外距离传感器近距离（`distance < 5.0cm`）直接判定遮挡；针对无顶置红外硬件机型的虚拟超声波距离传感器盲区，融合环境光照（`lux <= 1.0`）与机身重力姿态（正面朝下倒扣 `Z轴 < -6.0 m/s²` 或头朝下入兜 `Y轴 < -5.0 m/s²`）判定，兼顾传统机型与超声波旗舰，且夜间正面平放关灯正常放行不误判；
+    - **避让与容错保护（Fail-safe）**：检测到遮挡时立即跳过本次屏幕唤醒与前台拉起，并在诊断日志中明确记录原因与传感器特征，刷新防抖冷却；若设备无传感器、注册失败或采样超时则自动保底放行，避免保活永久卡死；用户解锁屏幕或流程取消时即时注销清理；
+    - **设置开关与配置下发**：在“前台保活”面板新增“距离传感器避让”独立开关（默认开启），支持动态下发与即时生效，日志格式化同步展示配置项。
+  - **涉及组件**：`SystemUiWatchdog.java`, `WatchdogConfig.java`, `WatchdogConfigStore.java`, `WatchdogContract.java`, `WatchdogLogFormatter.java`, `MainActivity.java`, `WatchdogConfigTest.java`, `WatchdogLogFormatterTest.java`
+  - **预期效果**：在手机处于口袋、背包或正面扣放时完全抑制无效亮屏，彻底杜绝封闭空间发热与误触，进一步降低待机功耗。
 
 - [x] **1.6 界面布局交互优化与二级页面视觉统一**
   - **现状痛点**：设置页保存与 Root 检测按钮位于长列表底部，每次修改需频繁下拉到底；日志页缺少统一顶栏与返回键，状态栏未适配浅色沉浸，且操作按钮随长日志滚出屏幕。

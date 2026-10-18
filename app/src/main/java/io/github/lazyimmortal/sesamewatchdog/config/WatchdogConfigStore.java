@@ -26,6 +26,7 @@ public final class WatchdogConfigStore {
     private static final String KEY_QUIET_HOURS_END_HOUR = "quietHoursEndHour";
     private static final String KEY_QUIET_HOURS_END_MINUTE = "quietHoursEndMinute";
     private static final String KEY_FAST_SLEEP_ENABLED = "fastSleepEnabled";
+    private static final String KEY_PROXIMITY_AVOIDANCE_ENABLED = "proximityAvoidanceEnabled";
     private static final String KEY_POLICY_VERSION = "policyVersion";
     private static final int RECOMMENDED_POLICY_VERSION = 2;
 
@@ -83,7 +84,10 @@ public final class WatchdogConfigStore {
                         defaults.getQuietHoursEndMinute()),
                 preferences.getBoolean(
                         KEY_FAST_SLEEP_ENABLED,
-                        defaults.isFastSleepEnabled()));
+                        defaults.isFastSleepEnabled()),
+                preferences.getBoolean(
+                        KEY_PROXIMITY_AVOIDANCE_ENABLED,
+                        defaults.isProximityAvoidanceEnabled()));
         if (migrateRecoveryPolicy) {
             save(context, config);
         }
@@ -113,6 +117,7 @@ public final class WatchdogConfigStore {
                 .putInt(KEY_QUIET_HOURS_END_HOUR, config.getQuietHoursEndHour())
                 .putInt(KEY_QUIET_HOURS_END_MINUTE, config.getQuietHoursEndMinute())
                 .putBoolean(KEY_FAST_SLEEP_ENABLED, config.isFastSleepEnabled())
+                .putBoolean(KEY_PROXIMITY_AVOIDANCE_ENABLED, config.isProximityAvoidanceEnabled())
                 .putInt(KEY_POLICY_VERSION, RECOMMENDED_POLICY_VERSION)
                 .apply();
     }
@@ -165,7 +170,10 @@ public final class WatchdogConfigStore {
                         defaults.getQuietHoursEndMinute()),
                 intent.getBooleanExtra(
                         WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
-                        defaults.isFastSleepEnabled()));
+                        defaults.isFastSleepEnabled()),
+                intent.getBooleanExtra(
+                        WatchdogContract.EXTRA_PROXIMITY_AVOIDANCE_ENABLED,
+                        defaults.isProximityAvoidanceEnabled()));
     }
 
     public static void sendToSystemUi(Context context, WatchdogConfig config) {
@@ -222,7 +230,10 @@ public final class WatchdogConfigStore {
                         config.getQuietHoursEndMinute())
                 .putExtra(
                         WatchdogContract.EXTRA_FAST_SLEEP_ENABLED,
-                        config.isFastSleepEnabled());
+                        config.isFastSleepEnabled())
+                .putExtra(
+                        WatchdogContract.EXTRA_PROXIMITY_AVOIDANCE_ENABLED,
+                        config.isProximityAvoidanceEnabled());
         context.sendBroadcast(intent);
     }
 }
